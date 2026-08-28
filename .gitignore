@@ -1,0 +1,38 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Resume files (personal data)
+backend/resumes/
+
+# DB
+postgres_data/
+
+# Logs
+*.log
+logs/
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+node_modules/
