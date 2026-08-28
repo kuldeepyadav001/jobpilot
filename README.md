@@ -1,36 +1,48 @@
-# JobPilot — Automated Job Hunting System
+# 🚀 JobPilot — Automated Job Hunting System
 
-Scrapes jobs, matches your resume, applies automatically, tracks responses.
+Stop manually scrolling job portals. JobPilot scrapes, scores, applies, and tracks — automatically.
+
+## The Problem
+
+- Hours wasted daily scrolling Internshala & Naukri
+- Sending wrong resumes to wrong roles
+- No cover letters or generic ones
+- Losing track of who responded
+- Zero visibility into interview conversion rate
+
+## The Solution
+
+A self-hosted app that runs a full job hunting loop every 6 hours:
+
+1. **Scrapes** Internshala + Naukri (Playwright)
+2. **Scores** jobs against your resume (TF-IDF)
+3. **Generates** tailored cover letters (Ollama LLM)
+4. **Applies** via portal or email automatically
+5. **Tracks** recruiter replies via Gmail IMAP
+6. **Updates** Kanban board status automatically
+
+You only open the dashboard to see results.
+
+## Tech Stack
+
+| Layer | Tool |
+|-------|------|
+| Backend | Python 3.11, FastAPI, SQLAlchemy |
+| Database | PostgreSQL 15.5 |
+| Scraping | Playwright (Chromium) |
+| AI | Ollama + qwen2.5:1.5b (local, free) |
+| Matching | scikit-learn TF-IDF |
+| Frontend | React 18, Vite, TailwindCSS |
+| DevOps | Docker Compose, Nginx |
+
+**100% free. Zero paid APIs. Zero cloud costs.**
 
 ## Quick Start
 
-1. Clone the repo
-   git clone https://github.com/yourusername/jobpilot.git
-   cd jobpilot
-
-2. Setup environment
-   cp .env.example .env
-   # Edit .env with your credentials
-
-3. Start services
-   docker compose up --build
-
-4. Verify
-   Visit http://localhost/health
-
-## Architecture
-- Backend: FastAPI (port 8000)
-- Database: PostgreSQL 15.5
-- Proxy: Nginx (port 80)
-
-## Stages
-- [x] Stage 1: Foundation
-- [ ] Stage 2: Database models
-- [ ] Stage 3: Scrapers
-- [ ] Stage 4: Resume engine
-- [ ] Stage 5: Apply engine
-- [ ] Stage 6: AI layer
-- [ ] Stage 7: Response tracker
-- [ ] Stage 8: Scheduler
-- [ ] Stage 9: REST API
-- [ ] Stage 10: React dashboard
+```bash
+git clone https://github.com/YOUR_USERNAME/jobpilot.git
+cd jobpilot
+cp .env.example .env        # Add your Gmail + cookies
+docker compose up -d         # Starts DB, backend, Ollama, Nginx
+docker exec -it jobpilot_ollama ollama pull qwen2.5:1.5b
+cd frontend && npm install && npm run dev
