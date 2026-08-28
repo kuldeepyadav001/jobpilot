@@ -46,3 +46,13 @@ cp .env.example .env        # Add your Gmail + cookies
 docker compose up -d         # Starts DB, backend, Ollama, Nginx
 docker exec -it jobpilot_ollama ollama pull qwen2.5:1.5b
 cd frontend && npm install && npm run dev
+Open http://localhost:5173 → Upload resume → Trigger pipeline in Settings.
+```
+## Dashboard
+1. **Feed** — Scraped jobs ranked by resume match %
+2. **Kanban** — Drag applications across Applied → Interview → Offer
+3. **Responses** — Auto-detected recruiter emails
+4. **Resumes** — Upload & tag multiple resumes
+5. **Analytics** — Application stats & portal breakdown
+6. **Settings** — Manual pipeline trigger
+
