@@ -18,12 +18,13 @@ class Settings(BaseSettings):
     smtp_port: int = 587
 
     # Ollama
-    ollama_base_url: str = "http://host.docker.internal:11434"
+    ollama_base_url: str = "http://ollama:11434"
     ollama_model: str = "qwen2.5:1.5b"
 
     # Scraping
     match_score_threshold: int = 65
     scheduler_interval_hours: int = 6
+    search_keywords: str = "python developer, react developer"
 
     class Config:
         env_file = ".env"

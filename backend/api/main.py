@@ -1,31 +1,41 @@
 import sys
-import time
 from fastapi import FastAPI, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from loguru import logger
-from api.routes import jobs, applications, resumes, analytics, pipeline, responses
+
 from core.database import get_db
 from models.job import Job
 from models.application import Application
 from models.resume import Resume
-from api.routes import jobs, applications, resumes, analytics, pipeline
+
+# Import all route modules (aliasing settings to avoid collision with config.settings)
+from api.routes import (
+    jobs,
+    applications,
+    resumes,
+    analytics,
+    pipeline,
+    responses,
+    settings as settings_route,
+)
 from scheduler.scheduler import start_scheduler, shutdown_scheduler
 
-# Logging configuration
+# 1. Logging Setup
 logger.remove()
 logger.add(sys.stdout, format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}", level="INFO")
 logger.add("logs/jobpilot.log", rotation="10 MB", retention="30 days", level="INFO")
 
+# 2. FastAPI App Instantiation
 app = FastAPI(
     title="JobPilot API",
-    version="1.0.0",
+    version="1.1.0",
     description="Automated job hunting system",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
+# 3. CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost", "http://localhost:3000", "http://localhost:5173"],
@@ -34,14 +44,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register routes
+# 4. Register All API Routers (app is defined now)
 app.include_router(jobs.router, prefix="/api")
 app.include_router(applications.router, prefix="/api")
 app.include_router(resumes.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(responses.router, prefix="/api")
+app.include_router(settings_route.router, prefix="/api")
 
+
+# 5. Lifecycle Event Handlers
 @app.on_event("startup")
 def on_startup():
     logger.info("JobPilot API starting up...")
@@ -54,9 +67,10 @@ def on_shutdown():
     shutdown_scheduler()
 
 
+# 6. Core Endpoints
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "JobPilot API", "version": "1.0.0"}
+    return {"status": "ok", "service": "JobPilot API", "version": "1.1.0"}
 
 
 @app.get("/metrics")

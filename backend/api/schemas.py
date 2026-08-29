@@ -87,3 +87,13 @@ class SnapshotOut(BaseModel):
 class PipelineResponse(BaseModel):
     status: str
     message: str
+    
+class DashboardStats(BaseModel):
+    total_jobs: int
+    total_applied: int
+    total_interviews: int
+    total_rejected: int
+    avg_match_score: Optional[float]
+    portal_breakdown: dict
+    daily_applies: int = 0
+    daily_cap: int = 10    

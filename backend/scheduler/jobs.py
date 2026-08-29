@@ -2,6 +2,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 from loguru import logger
 from core.database import SessionLocal
+from core.config import settings
 from scrapers.service import run_all_scrapers
 from engine.service import score_unmatched_jobs
 from engine.application_service import execute_job_application
@@ -11,10 +12,9 @@ from models.job import Job
 from models.resume import Resume
 from models.company import Company
 from models.analytics import AnalyticsSnapshot
-
+from engine.application_service import execute_job_application, can_apply_today
 
 async def generate_cover_letter_for_job(db: Session, job: Job, resume: Resume) -> str:
-    """Helper to query the active company and request tailored cover letters."""
     company = db.query(Company).filter(Company.id == job.company_id).first()
     company_name = company.name if company else "Hiring Team"
     
@@ -31,59 +31,57 @@ async def generate_cover_letter_for_job(db: Session, job: Job, resume: Resume) -
 
 
 async def run_daily_automation_pipeline():
-    """
-    Executes the complete scheduled job automation cycle:
-    1. Scrapes job listings
-    2. Runs TF-IDF matching/scoring
-    3. Auto-applies to qualified listings
-    4. Scans email replies for status changes
-    5. Records daily snapshot analytics
-    """
     logger.info("[Pipeline] Starting job automation pipeline cycle...")
     db = SessionLocal()
     try:
-        # STEP 1: Scrape Jobs
-        logger.info("[Pipeline] Step 1/5: Running scrapers...")
-        scrape_stats = await run_all_scrapers(db, keyword="python developer", location="remote", max_per_portal=10)
-        logger.info(f"[Pipeline] Scraped jobs: {scrape_stats}")
+        # Parse SEARCH_KEYWORDS from Settings
+        kw_list = [k.strip() for k in settings.search_keywords.split(",") if k.strip()]
+        if not kw_list:
+            kw_list = ["python developer"]
+
+        # STEP 1: Scrape Jobs for all keywords
+        logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list}...")
+        scrape_stats = await run_all_scrapers(db, keywords=kw_list, location="remote", max_per_portal=5)
+        logger.info(f"[Pipeline] Scraped jobs statistics: {scrape_stats}")
 
         # STEP 2: Score Jobs
         logger.info("[Pipeline] Step 2/5: Scoring new listings...")
         scored_count = score_unmatched_jobs(db)
         logger.info(f"[Pipeline] Scored {scored_count} new listings.")
 
-        # STEP 3: Auto-Apply Engine
+        # STEP 3: Auto-Apply Engine (with Smart Routing + Rate Limiting)
         logger.info("[Pipeline] Step 3/5: Evaluating qualified jobs for application...")
         active_resume = db.query(Resume).filter(Resume.is_active == True).first()
         
         if not active_resume:
-            logger.warning("[Pipeline] Apply step skipped: No active resume found in database.")
+            logger.warning("[Pipeline] Apply step skipped: No active resume found.")
         else:
-            # Query jobs above threshold (e.g. 10% for testing, defaults to settings value)
             qualified_jobs = (
                 db.query(Job)
                 .filter(Job.is_applied == False)
                 .filter(Job.is_blacklisted == False)
-                .filter(Job.match_score >= 10.0)  # low threshold for localized testing
+                .filter(Job.match_score >= settings.match_score_threshold)
                 .order_by(Job.match_score.desc())
-                .limit(3)  # Rate limit: Apply to at most 3 jobs per scheduler cycle to avoid spam limits
+                .limit(10)
                 .all()
             )
 
-            logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs matching criteria.")
+            logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs.")
             for job in qualified_jobs:
-                logger.info(f"[Pipeline] Applying to job: '{job.title}' (Match: {job.match_score}%)")
-                
-                # Render cover letter
+                # Check rate limit before each apply
+                if not can_apply_today(db, job.portal):
+                    logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
+                    break
+
+                logger.info(f"[Pipeline] Applying to: '{job.title}' (Match: {job.match_score}%)")
                 cover_letter = await generate_cover_letter_for_job(db, job, active_resume)
                 
-                # Apply using playbooks (defaults to safe portal mock apply)
-                execute_job_application(
+                await execute_job_application(
                     db=db,
                     job_id=job.id,
                     resume_id=active_resume.id,
                     cover_letter=cover_letter,
-                    method="portal"
+                    method="auto"  # Smart routing decides email/portal/manual
                 )
 
         # STEP 4: Scan Recruiter Response Emails
@@ -94,13 +92,11 @@ async def run_daily_automation_pipeline():
         # STEP 5: Record Daily Snapshot
         logger.info("[Pipeline] Step 5/5: Generating daily progress analytics snapshot...")
         today = date.today()
-        # Compute stats
         from models.application import Application
         total_applied = db.query(Application).count()
         total_interviews = db.query(Application).filter(Application.status == "interview").count()
         total_rejected = db.query(Application).filter(Application.status == "rejected").count()
 
-        # Update or create database daily analytics snapshot
         snapshot = db.query(AnalyticsSnapshot).filter(AnalyticsSnapshot.date == today).first()
         if not snapshot:
             snapshot = AnalyticsSnapshot(date=today)

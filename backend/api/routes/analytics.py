@@ -6,7 +6,9 @@ from models.job import Job
 from models.application import Application
 from models.analytics import AnalyticsSnapshot
 from api.schemas import DashboardStats, SnapshotOut
-
+from datetime import date
+from sqlalchemy import func
+from models.apply_log import ApplyLog
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
@@ -16,7 +18,12 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_applied = db.query(Application).count()
     total_interviews = db.query(Application).filter(Application.status == "interview").count()
     total_rejected = db.query(Application).filter(Application.status == "rejected").count()
-
+    today = date.today()
+    daily_applies = (
+        db.query(func.count(ApplyLog.id))
+        .filter(ApplyLog.applied_date == today)
+        .scalar()
+    ) or 0
     avg_score = db.query(func.avg(Job.match_score)).scalar()
 
     # Portal breakdown

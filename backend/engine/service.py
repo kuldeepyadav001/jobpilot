@@ -4,7 +4,7 @@ from loguru import logger
 from models.resume import Resume
 from models.job import Job
 from engine.parser import parse_resume_file
-from engine.matcher import select_best_resume, compute_match_score
+from engine.matcher import select_best_resume, compute_hybrid_match_score
 
 
 def register_resume(
@@ -30,13 +30,13 @@ def register_resume(
     db.add(resume)
     db.commit()
     db.refresh(resume)
-    logger.info(f"Registered resume: '{name}' (ID: {resume.id}, Text length: {len(parsed_text)} chars)")
+    logger.info(f"Registered resume: '{name}' (ID: {resume.id}, Tags: {tags})")
     return resume
 
 
 def score_unmatched_jobs(db: Session) -> int:
     """
-    Scores all unscored jobs in the database against all active resumes.
+    Scores all unscored jobs in the database against all active resumes using Hybrid matching.
     Updates Job.match_score with the highest score found.
     """
     active_resumes = db.query(Resume).filter(Resume.is_active == True).all()
@@ -48,10 +48,11 @@ def score_unmatched_jobs(db: Session) -> int:
     scored_count = 0
 
     for job in unscored_jobs:
-        best_resume, score = select_best_resume(job.description or job.title, active_resumes)
+        jd_text = f"{job.title} {job.description or ''}"
+        best_resume, score = select_best_resume(jd_text, active_resumes)
         job.match_score = score
         scored_count += 1
 
     db.commit()
-    logger.info(f"Scored {scored_count} previously unscored jobs.")
+    logger.info(f"Scored {scored_count} jobs using hybrid matching.")
     return scored_count

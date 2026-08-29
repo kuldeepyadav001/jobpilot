@@ -1,5 +1,6 @@
+import os
 import re
-import urllib.parse
+import asyncio
 from typing import List, Optional
 from loguru import logger
 from scrapers.base import BaseScraper, ScrapedJob
@@ -9,7 +10,6 @@ class InternshalaScraper(BaseScraper):
     BASE_URL = "https://internshala.com"
 
     def _parse_salary(self, salary_str: str):
-        """Extracts min and max yearly/monthly salary in INR."""
         if not salary_str:
             return None, None
         nums = [int(s.replace(",", "")) for s in re.findall(r"\d[\d,]*", salary_str)]
@@ -21,10 +21,10 @@ class InternshalaScraper(BaseScraper):
 
     async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20) -> List[ScrapedJob]:
         jobs: List[ScrapedJob] = []
-        page = await self.init_browser(domain=".internshala.com")
+        cookie_string = os.getenv("INTERNSHALA_COOKIE", "")
+        page = await self.init_browser(cookie_string=cookie_string, domain=".internshala.com")
 
         try:
-            # Build search URL
             query_keyword = keyword.strip().lower().replace(" ", "-")
             search_url = f"{self.BASE_URL}/jobs/{query_keyword}-jobs"
             if location:
@@ -34,7 +34,12 @@ class InternshalaScraper(BaseScraper):
             logger.info(f"[Internshala] Navigating to: {search_url}")
             await page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
 
-            # Wait for job container cards
+            # Check session health if cookies were provided
+            if cookie_string:
+                session_ok = await self.check_session_valid(page, "internshala")
+                if not session_ok:
+                    logger.warning("[Internshala] Session validation failed. Proceeding in guest browsing mode.")
+
             await page.wait_for_selector(".individual_internship", timeout=15000)
             cards = await page.query_selector_all(".individual_internship")
 
@@ -65,14 +70,49 @@ class InternshalaScraper(BaseScraper):
                         location=loc,
                         salary_min=sal_min,
                         salary_max=sal_max,
-                        description=f"Role: {title} at {company_name}",
+                        description="",  # Will be enriched below
                         url=job_url
                     ))
                 except Exception as e:
-                    logger.debug(f"[Internshala] Error parsing a card: {e}")
+                    logger.debug(f"[Internshala] Error parsing card: {e}")
                     continue
 
-            logger.info(f"[Internshala] Scraped {len(jobs)} jobs successfully")
+            logger.info(f"[Internshala] Scraped {len(jobs)} jobs from listing page")
+
+            # --- ENRICH: Fetch full JD for each job ---
+            logger.info(f"[Internshala] Enriching {len(jobs)} jobs with full descriptions...")
+            for job in jobs:
+                try:
+                    await asyncio.sleep(2)  # Rate limit safety delay
+                    await page.goto(job.url, wait_until="domcontentloaded", timeout=30000)
+
+                    desc_selectors = [
+                        ".text-container",
+                        ".detail_view",
+                        ".internship_detail",
+                        ".job-detail",
+                        "#job_description",
+                        ".description",
+                    ]
+
+                    full_desc = ""
+                    for selector in desc_selectors:
+                        desc_elem = await page.query_selector(selector)
+                        if desc_elem:
+                            full_desc = (await desc_elem.inner_text()).strip()
+                            if len(full_desc) > 50:
+                                break
+
+                    if full_desc and len(full_desc) > 50:
+                        job.description = full_desc[:3000]
+                        logger.debug(f"[Internshala] Got full JD ({len(full_desc)} chars) for: {job.title[:40]}")
+                    else:
+                        job.description = f"{job.title} at {job.company_name}"
+
+                except Exception as e:
+                    logger.debug(f"[Internshala] Failed to enrich JD for {job.url}: {e}")
+                    job.description = f"{job.title} at {job.company_name}"
+
             return jobs
 
         except Exception as e:

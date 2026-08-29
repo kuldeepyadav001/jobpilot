@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { LayoutDashboard, Briefcase, Trello, FileText, Mail, BarChart2, Settings as SettingsIcon, Search, Bell, User } from 'lucide-react'
+import { LayoutDashboard, Briefcase, Kanban as KanbanIcon, FileText, Mail, BarChart2, Settings as SettingsIcon, Search, Bell, User } from 'lucide-react'
 
 import Dashboard from './pages/Dashboard'
 import Feed from './pages/Feed'
@@ -17,7 +17,7 @@ const queryClient = new QueryClient({
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/feed', icon: Briefcase, label: 'Job Feed' },
-  { to: '/kanban', icon: Trello, label: 'Pipeline' },
+  { to: '/kanban', icon: KanbanIcon, label: 'Pipeline' },
   { to: '/resumes', icon: FileText, label: 'Resumes' },
   { to: '/responses', icon: Mail, label: 'Responses' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },

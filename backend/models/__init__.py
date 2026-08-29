@@ -5,6 +5,7 @@ from models.application import Application
 from models.response import Response
 from models.status_history import StatusHistory
 from models.analytics import AnalyticsSnapshot
+from models.apply_log import ApplyLog
 
 __all__ = [
     "Company",
@@ -14,4 +15,5 @@ __all__ = [
     "Response",
     "StatusHistory",
     "AnalyticsSnapshot",
+    "ApplyLog",
 ]

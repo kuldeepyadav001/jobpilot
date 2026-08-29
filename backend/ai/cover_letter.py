@@ -1,24 +1,16 @@
+import re
 from typing import Optional
 from loguru import logger
 from ai.ollama_client import OllamaClient
+SYSTEM_PROMPT = """You are an expert recruiter and elite resume writer.
+Your job is to write a highly tailored, direct, and compelling email cover letter (maximum 150 words).
 
-
-SYSTEM_PROMPT = """You are an expert career consultant and professional resume writer.
-Your job is to write a concise, compelling, and tailored cover letter (maximum 180-220 words) for a job application.
-Highlight matching technical skills directly relevant to the job requirements without fluff, exaggeration, or clichés."""
-
-
-def build_template_fallback(job_title: str, company_name: str, skills_summary: str) -> str:
-    """Deterministic fallback if local LLM service is offline."""
-    return (
-        f"Dear Hiring Team at {company_name},\n\n"
-        f"I am writing to express my strong interest in the {job_title} role. "
-        f"My background and technical experience in {skills_summary} align closely with the qualifications needed for this position.\n\n"
-        f"I have hands-on experience building clean, maintainable systems and working with modern engineering workflows. "
-        f"I look forward to the opportunity to contribute to your team.\n\n"
-        f"Thank you for your time and consideration.\n\n"
-        f"Sincerely,\nApplicant"
-    )
+CRITICAL FORMATTING RULES:
+1. NEVER include physical headers, addresses, phone numbers, emails, or dates at the top.
+2. Start DIRECTLY with the greeting: 'Dear Hiring Team at [Company Name],' or 'Dear [Company Name] Team,'.
+3. End cleanly with: 'Best regards,\n[Candidate Name]' (Replace [Candidate Name] with the actual candidate's name from the resume).
+4. NEVER use bracketed placeholders like [University], [Address], [Today's Date], [Recipient's Name], or [Date].
+5. If the resume does not specify a detail (like university name), speak generally: 'my university' or 'my technical program', never leave a placeholder."""
 
 
 async def generate_tailored_cover_letter(
@@ -28,24 +20,30 @@ async def generate_tailored_cover_letter(
     resume_text: str
 ) -> str:
     """
-    Generates a tailored cover letter using Ollama.
-    Falls back to a structured template if Ollama is unreachable.
+    Generates a tailored, placeholder-free cover letter using Ollama.
     """
-    prompt = f"""
-Write a targeted, concise cover letter for this position:
-- Target Job Title: {job_title}
-- Target Company: {company_name}
-- Job Description / Requirements:
-{job_description[:1000]}
+    # Try to extract the candidate's name from the first line of resume text
+    candidate_name = "kuldeep yadav"  # Default fallback
+    first_line = resume_text.strip().split("\n")[0].strip()
+    if len(first_line) < 50 and any(char.isalpha() for char in first_line):
+        candidate_name = first_line
 
-Candidate Resume Text:
+    prompt = f"""
+Write a direct, professional email cover letter for this job:
+- Job Title: {job_title}
+- Company: {company_name}
+- Job Description:
+{job_description[:800]}
+
+Candidate Resume/Skills:
 {resume_text[:1200]}
 
-Requirements:
-- Keep length under 200 words.
-- Professional, direct, and enthusiastic tone.
-- Reference 2-3 specific technical matches.
-- Do not invent experience not present in the resume.
+CRITICAL: 
+- Keep it under 130 words.
+- Start directly with the greeting. No headers.
+- Match candidate's skills directly to the role requirements.
+- Use the candidate name: {candidate_name} at the bottom.
+- Zero placeholders.
 """
 
     client = OllamaClient()
@@ -53,13 +51,19 @@ Requirements:
     ai_generated = await client.generate_text(prompt=prompt, system_prompt=SYSTEM_PROMPT)
 
     if ai_generated:
+        # Final safety filter: clean up any accidental brackets the LLM generated
+        clean_cl = re.sub(r"\[.*?\]", "", ai_generated)
         logger.info("[AI Layer] Cover letter generated successfully via Ollama.")
-        return ai_generated
+        return clean_cl.strip()
 
-    # Graceful degradation fallback
+    # Fallback
     logger.warning("[AI Layer] Falling back to structured deterministic template.")
-    return build_template_fallback(
-        job_title=job_title,
-        company_name=company_name,
-        skills_summary="Python, FastAPI, SQL, and backend system architecture"
+    return (
+        f"Dear Hiring Team at {company_name},\n\n"
+        f"I am writing to express my strong interest in the {job_title} position. "
+        f"My background in full-stack software engineering and hands-on experience "
+        f"building clean, scalable backend systems align closely with your team's needs.\n\n"
+        f"I am proficient in modern engineering workflows, backend architecture, and rapid deployment. "
+        f"I look forward to the possibility of discussing how I can contribute to your team.\n\n"
+        f"Best regards,\n{candidate_name}"
     )

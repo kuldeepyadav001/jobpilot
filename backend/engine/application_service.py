@@ -1,18 +1,24 @@
 import os
 import asyncio
+from datetime import date
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from loguru import logger
 from models.job import Job
 from models.resume import Resume
 from models.application import Application
 from models.status_history import StatusHistory
+from models.apply_log import ApplyLog
 from engine.email_sender import send_job_application_email
 from engine.apply import PlaywrightApplyEngine
+from core.config import settings
+
+# Daily apply cap per portal
+MAX_DAILY_APPLIES = 10
 
 
 def log_status_change(db: Session, app_id: int, old: str, new: str, trigger_type: str = "auto"):
-    """Inserts status tracking snapshots to maintain auditing logs."""
     history_entry = StatusHistory(
         application_id=app_id,
         old_status=old,
@@ -22,17 +28,49 @@ def log_status_change(db: Session, app_id: int, old: str, new: str, trigger_type
     db.add(history_entry)
 
 
-def execute_job_application(
+def get_daily_apply_count(db: Session, portal: str) -> int:
+    """Returns how many applications were sent to this portal today."""
+    today = date.today()
+    count = (
+        db.query(func.count(ApplyLog.id))
+        .filter(ApplyLog.portal == portal)
+        .filter(ApplyLog.applied_date == today)
+        .scalar()
+    )
+    return count or 0
+
+
+def can_apply_today(db: Session, portal: str) -> bool:
+    """Checks if we haven't exceeded the daily apply cap for this portal."""
+    count = get_daily_apply_count(db, portal)
+    if count >= MAX_DAILY_APPLIES:
+        logger.warning(f"[Rate Limit] Daily cap reached for {portal}: {count}/{MAX_DAILY_APPLIES}")
+        return False
+    return True
+
+
+def record_apply(db: Session, portal: str, job_id: int, method: str):
+    """Logs an application to the daily rate limit tracker."""
+    log_entry = ApplyLog(
+        portal=portal,
+        job_id=job_id,
+        method=method,
+        applied_date=date.today()
+    )
+    db.add(log_entry)
+
+
+async def execute_job_application(
     db: Session,
     job_id: int,
     resume_id: int,
     cover_letter: str,
-    method: str = "portal",  # email / portal
+    method: str = "auto",  # auto / email / portal / manual
     recipient_email: Optional[str] = None
 ) -> Optional[Application]:
     """
-    Core engine coordinator. Executes the apply routing strategy, updates DB rows, 
-    and handles automatic state promotion transitions.
+    Core engine coordinator with smart routing and rate limiting.
+    Async function that awaits browser actions cleanly.
     """
     job = db.query(Job).filter(Job.id == job_id).first()
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
@@ -42,9 +80,42 @@ def execute_job_application(
         return None
 
     if job.is_applied:
-        logger.warning(f"[Apply Service] Job '{job.title}' was already targeted for application.")
+        logger.warning(f"[Apply Service] Job '{job.title}' already applied.")
         return None
 
+    # --- RATE LIMIT CHECK ---
+    if not can_apply_today(db, job.portal):
+        logger.warning(f"[Apply Service] Skipping '{job.title}' — daily cap reached for {job.portal}.")
+        return None
+
+    # --- SMART ROUTING (if method is 'auto') ---
+    if method == "auto":
+        engine = PlaywrightApplyEngine(headless=True)
+        detected_method, detected_email = await engine.detect_apply_method(job.url, job.portal)
+        method = detected_method
+        if detected_email:
+            recipient_email = detected_email
+        logger.info(f"[Smart Route] Job '{job.title}' routed to: {method}")
+
+    # --- MANUAL APPLY: Just flag it, don't actually apply ---
+    if method == "manual":
+        new_app = Application(
+            job_id=job.id,
+            resume_id=resume.id,
+            method="manual",
+            status="needs_manual_action",
+            cover_letter=cover_letter
+        )
+        db.add(new_app)
+        db.flush()
+        job.is_applied = True
+        log_status_change(db, new_app.id, "none", "needs_manual_action", "auto")
+        record_apply(db, job.portal, job.id, "manual")
+        db.commit()
+        logger.info(f"[Apply Service] Flagged for manual apply: '{job.title}'")
+        return new_app
+
+    # --- CREATE APPLICATION RECORD ---
     new_app = Application(
         job_id=job.id,
         resume_id=resume.id,
@@ -57,10 +128,10 @@ def execute_job_application(
 
     final_status = "pending"
 
-    # ROUTE A: Email Apply Method
+    # --- ROUTE A: Email Apply ---
     if method == "email":
         if not recipient_email:
-            logger.error("[Apply Service] Recipient target email missing.")
+            logger.error("[Apply Service] No recipient email for email route.")
             final_status = "failed"
         else:
             success = send_job_application_email(
@@ -72,19 +143,22 @@ def execute_job_application(
             )
             final_status = "applied" if success else "failed"
 
-    # ROUTE B: Portal Automation Method
-    else:
+    # --- ROUTE B: Portal Apply ---
+    elif method == "portal":
         if job.portal == "internshala":
             engine = PlaywrightApplyEngine(headless=True)
-            final_status = asyncio.run(engine.apply_to_internshala(job.url, cover_letter))
+            final_status = await engine.apply_to_internshala(job.url, cover_letter)
         else:
-            logger.warning(f"[Apply Service] Portal {job.portal} apply not automated in v1. Marking as manual action required.")
+            logger.warning(f"[Apply Service] Portal '{job.portal}' automation not yet supported.")
             final_status = "needs_manual_action"
 
-    # Commit structural state records
+    # --- COMMIT STATE ---
     new_app.status = final_status
-    job.is_applied = True if final_status == "applied" else False
+    job.is_applied = True if final_status in ("applied", "needs_manual_action") else False
     log_status_change(db, new_app.id, "none", final_status, "auto")
+
+    if final_status in ("applied", "needs_manual_action"):
+        record_apply(db, job.portal, job.id, method)
 
     db.commit()
     logger.info(f"[Apply Service] Application completed. Status: {final_status}")

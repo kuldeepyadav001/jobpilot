@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from loguru import logger
@@ -7,39 +7,100 @@ from models.resume import Resume
 
 
 def clean_text(text: str) -> str:
-    """Normalizes text by removing non-alphanumeric noise and extra spaces."""
+    """Normalizes text by lowercasing and standardizing characters."""
     if not text:
         return ""
     text = text.lower()
-    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    # Retain tech symbols like c++, c#, .net, node.js
+    text = re.sub(r"[^a-z0-9\s#+.]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def compute_match_score(resume_text: str, job_description: str) -> float:
+def calculate_keyword_coverage(tags: List[str], jd_text: str) -> float:
     """
-    Computes cosine similarity percentage (0.0 to 100.0)
-    between a resume and job description using TF-IDF.
+    Calculates direct keyword match percentage.
+    If a job description mentions 6 out of 10 tags, coverage is 60.0%.
     """
-    cleaned_resume = clean_text(resume_text)
-    cleaned_jd = clean_text(job_description)
+    if not tags or not jd_text:
+        return 0.0
 
-    if not cleaned_resume or not cleaned_jd:
+    cleaned_jd = clean_text(jd_text)
+    matched_count = 0
+
+    for tag in tags:
+        clean_tag = clean_text(tag)
+        if not clean_tag:
+            continue
+        pattern = r"\b" + re.escape(clean_tag) + r"\b"
+        if re.search(pattern, cleaned_jd):
+            matched_count += 1
+
+    coverage = (matched_count / len(tags)) * 100.0
+    return round(coverage, 2)
+
+
+def compute_hybrid_match_score(resume: Resume, job_description: str) -> float:
+    """
+    Combines Keyword Coverage (70%) + TF-IDF Contextual Similarity (30%).
+    Produces realistic ATS scores in the 30% - 90% range.
+    """
+    cleaned_jd = clean_text(job_description)
+    if not cleaned_jd:
+        return 0.0
+
+    # 1. Direct Keyword Coverage (Tags)
+    tags = resume.tags if isinstance(resume.tags, list) else []
+    coverage_score = calculate_keyword_coverage(tags, cleaned_jd)
+
+    # 2. Contextual TF-IDF Similarity
+    resume_text = clean_text(resume.parsed_text or " ".join(tags))
+    tfidf_score = 0.0
+
+    if resume_text:
+        try:
+            vectorizer = TfidfVectorizer(
+                stop_words="english",
+                ngram_range=(1, 2),
+                max_df=1.0,
+                min_df=1
+            )
+            matrix = vectorizer.fit_transform([resume_text, cleaned_jd])
+            sim = cosine_similarity(matrix[0:1], matrix[1:2])[0][0]
+            # Scale TF-IDF cosine (0.05 - 0.25) by 300 to match percentage scale
+            tfidf_score = min(sim * 300.0, 100.0)
+        except Exception as e:
+            logger.debug(f"TF-IDF calculation fallback: {e}")
+            tfidf_score = 0.0
+
+    # 3. Weighted Final Score
+    if tags:
+        final_score = (coverage_score * 0.70) + (tfidf_score * 0.30)
+    else:
+        final_score = tfidf_score
+
+    return round(min(final_score, 100.0), 2)
+
+
+def compute_match_score(resume_input: Union[Resume, str], job_description: str) -> float:
+    """
+    Backward-compatible wrapper. Handles both a Resume model instance or raw string.
+    """
+    if isinstance(resume_input, Resume):
+        return compute_hybrid_match_score(resume_input, job_description)
+
+    # If raw string is passed, calculate pure TF-IDF cosine
+    cleaned_res = clean_text(str(resume_input))
+    cleaned_jd = clean_text(job_description)
+    if not cleaned_res or not cleaned_jd:
         return 0.0
 
     try:
-        # max_df=1.0 ensures terms present in both documents are NOT stripped
-        vectorizer = TfidfVectorizer(
-            stop_words="english",
-            ngram_range=(1, 2),
-            max_df=1.0,
-            min_df=1
-        )
-        tfidf_matrix = vectorizer.fit_transform([cleaned_resume, cleaned_jd])
-        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
-        return round(float(similarity) * 100, 2)
-    except Exception as e:
-        logger.error(f"Error computing match score: {e}")
+        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_df=1.0, min_df=1)
+        matrix = vectorizer.fit_transform([cleaned_res, cleaned_jd])
+        sim = cosine_similarity(matrix[0:1], matrix[1:2])[0][0]
+        return round(float(min(sim * 300.0, 100.0)), 2)
+    except Exception:
         return 0.0
 
 
@@ -52,10 +113,10 @@ def select_best_resume(job_description: str, resumes: List[Resume]) -> Tuple[Opt
     highest_score: float = -1.0
 
     for resume in resumes:
-        if not resume.is_active or not resume.parsed_text:
+        if not resume.is_active:
             continue
 
-        score = compute_match_score(resume.parsed_text, job_description)
+        score = compute_hybrid_match_score(resume, job_description)
         if score > highest_score:
             highest_score = score
             best_resume = resume

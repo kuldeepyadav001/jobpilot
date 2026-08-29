@@ -9,24 +9,22 @@ from scrapers.naukri import NaukriScraper
 
 
 def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
-    """
-    Saves scraped jobs to DB:
-    1. Checks company blacklist
-    2. Finds or creates Company record
-    3. Ignores duplicates (by URL)
-    """
     saved_count = 0
     skipped_existing = 0
+    enriched_existing = 0
     blacklisted_count = 0
 
     for item in scraped_jobs:
-        # Check if job already exists
         existing_job = db.query(Job).filter(Job.url == item.url).first()
+
         if existing_job:
-            skipped_existing += 1
+            if item.description and len(item.description) > 80 and len(existing_job.description or "") < 80:
+                existing_job.description = item.description
+                enriched_existing += 1
+            else:
+                skipped_existing += 1
             continue
 
-        # Find or create company
         company = db.query(Company).filter(Company.name.ilike(item.company_name.strip())).first()
         if not company:
             company = Company(name=item.company_name.strip(), blacklisted=False)
@@ -53,22 +51,37 @@ def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
         saved_count += 1
 
     db.commit()
-    logger.info(f"Ingestion complete: {saved_count} saved, {skipped_existing} existing, {blacklisted_count} blacklisted.")
     return {
         "saved": saved_count,
+        "enriched": enriched_existing,
         "skipped": skipped_existing,
         "blacklisted": blacklisted_count,
     }
 
 
-async def run_all_scrapers(db: Session, keyword: str = "python developer", location: str = "remote", max_per_portal: int = 15) -> dict:
-    """Runs Internshala and Naukri scrapers and ingests results."""
-    internshala = InternshalaScraper()
-    naukri = NaukriScraper()
+async def run_all_scrapers(db: Session, keywords: List[str], location: str = "remote", max_per_portal: int = 10) -> dict:
+    """Runs scrapers over multiple keywords sequentially and returns aggregated stats."""
+    total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+    
+    logger.info(f"Starting multi-keyword scraper loop. Keywords: {keywords}")
+    
+    for kw in keywords:
+        kw_clean = kw.strip()
+        if not kw_clean:
+            continue
+            
+        logger.info(f"Scraping keyword: '{kw_clean}'")
+        internshala = InternshalaScraper()
+        naukri = NaukriScraper()
 
-    logger.info(f"Starting scraper run for keyword='{keyword}', location='{location}'")
-    internshala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal)
-    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal)
+        ishala_jobs = await internshala.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
+        naukri_jobs = await naukri.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
 
-    all_jobs = internshala_jobs + naukri_jobs
-    return save_scraped_jobs(db, all_jobs)
+        all_jobs = ishala_jobs + naukri_jobs
+        stats = save_scraped_jobs(db, all_jobs)
+        
+        for key in total_stats:
+            total_stats[key] += stats.get(key, 0)
+
+    logger.info(f"Completed multi-keyword scraper run. Aggregated stats: {total_stats}")
+    return total_stats
