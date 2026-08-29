@@ -4,7 +4,7 @@ const api = axios.create({
   baseURL: '/api',
   timeout: 30000,
 })
-
+export const fetchCookieHealth = () => api.get('/settings/cookie-health').then(r => r.data)
 export const fetchJobs = (params) => api.get('/jobs', { params }).then(r => r.data)
 export const fetchApplications = () => api.get('/applications').then(r => r.data)
 export const updateAppStatus = (id, status) => api.patch(`/applications/${id}/status`, { status }).then(r => r.data)

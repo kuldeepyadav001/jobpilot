@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { triggerPipeline } from '../api/client'
-
+import { fetchCookieHealth } from '../api/client'
 export default function Settings() {
   const [log, setLog] = useState([])
   const [isRunning, setIsRunning] = useState(false)
@@ -21,6 +21,11 @@ export default function Settings() {
       setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: ${err.message || "Failed to complete pipeline runs."}`])
     }
   })
+  const { data: cookies = [] } = useQuery({
+  queryKey: ['cookieHealth'],
+  queryFn: fetchCookieHealth,
+  refetchInterval: 60000, // Refresh every minute
+})
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -54,7 +59,31 @@ export default function Settings() {
           </div>
         )}
       </div>
-
+<div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-4">
+  <h3 className="text-base font-semibold">Portal Cookie Status</h3>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {cookies.map((c) => (
+      <div key={c.portal} className="bg-gray-950 p-3 border border-gray-800 rounded flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-sm uppercase">{c.portal}</p>
+          <p className="text-xs text-gray-500">Cookie length: {c.cookie_length} chars</p>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+          c.status === 'configured' ? 'bg-green-600 text-white' :
+          c.status === 'empty' ? 'bg-yellow-600 text-white' :
+          'bg-red-600 text-white'
+        }`}>
+          {c.status === 'configured' ? '✅ Active' :
+           c.status === 'empty' ? '⚠️ Too Short' :
+           '❌ Missing'}
+        </span>
+      </div>
+    ))}
+  </div>
+  <p className="text-xs text-gray-500">
+    If a cookie shows "Missing" or "Too Short", update it in your .env file and restart the backend.
+  </p>
+</div>
       {/* Configuration Metadata Summary */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-4">
         <h3 className="text-base font-semibold">Environment Variables Details</h3>
