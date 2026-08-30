@@ -41,7 +41,7 @@ export default function Dashboard() {
       {/* Hero Banner */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-lg shadow-indigo-200 flex justify-between items-center relative overflow-hidden">
         <div className="relative z-10">
-          <h2 className="text-3xl font-extrabold mb-2">Welcome Back, Kuldeep!</h2>
+          <h2 className="text-3xl font-extrabold mb-2">Welcome Back!</h2>
           <p className="text-indigo-100 font-medium max-w-md leading-relaxed">
             Your automated agent is standing by. You have discovered <span className="text-white font-bold">{stats?.total_jobs || 0} jobs</span> so far.
           </p>
