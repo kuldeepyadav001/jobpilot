@@ -16,7 +16,7 @@ export const deleteResume = (id) => api.delete(`/resumes/${id}`)
 export const fetchDashboard = () => api.get('/analytics/dashboard').then(r => r.data)
 export const fetchSnapshots = () => api.get('/analytics/snapshots').then(r => r.data)
 export const fetchSystemHealth = () => api.get('/system/health').then(r => r.data)
-export const fetchMetricsText = () => api.get('/metrics').then(r => r.data)
+
 export const runScraperDiagnostics = (params = {}) => api.post('/scrapers/diagnostics', null, { params }).then(r => r.data)
 export const fetchScraperDiagnosticsStatus = () => api.get('/scrapers/diagnostics/status').then(r => r.data)
 export const runJobCleanup = () => api.delete('/jobs/cleanup').then(r => r.data)

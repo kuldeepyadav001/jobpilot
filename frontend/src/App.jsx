@@ -27,7 +27,7 @@ const NAV_ITEMS = [
   { to: '/resumes', icon: FileText, label: 'Resumes' },
   { to: '/responses', icon: Mail, label: 'Responses' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
-  { to: '/monitoring', icon: HeartPulse, label: 'Monitoring' },
+  { to: '/monitoring', icon: HeartPulse, label: 'Health' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
 

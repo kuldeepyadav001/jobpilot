@@ -6,7 +6,7 @@ const FEATURES = [
   { icon: FileSearch, title: 'Smart Matching', desc: 'Scores every job against your resumes and picks the best one.' },
   { icon: Sparkles, title: 'AI Cover Letters', desc: 'Local LLM writes a tailored letter for every application.' },
   { icon: Mail, title: 'Response Tracking', desc: 'Reads your inbox and auto-updates the pipeline status.' },
-  { icon: Gauge, title: 'Live Monitoring', desc: 'Prometheus + Grafana + a health dashboard so nothing fails silently.' },
+  { icon: Gauge, title: 'Live Health Check', desc: 'A lightweight in-app status indicator — no heavy monitoring containers.' },
 ]
 
 export default function Landing() {
