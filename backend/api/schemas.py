@@ -64,15 +64,6 @@ class ResumeOut(BaseModel):
 
 
 # --- Analytics ---
-class DashboardStats(BaseModel):
-    total_jobs: int
-    total_applied: int
-    total_interviews: int
-    total_rejected: int
-    avg_match_score: Optional[float]
-    portal_breakdown: dict
-
-
 class SnapshotOut(BaseModel):
     date: date
     total_applied: int

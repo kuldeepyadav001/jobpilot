@@ -1,26 +1,48 @@
-import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { triggerPipeline } from '../api/client'
-import { fetchCookieHealth } from '../api/client'
+import { useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { triggerPipeline, fetchPipelineStatus } from '../api/client'
+import { fetchCookieHealth, fetchAppSettings } from '../api/client'
 export default function Settings() {
   const [log, setLog] = useState([])
-  const [isRunning, setIsRunning] = useState(false)
+  const queryClient = useQueryClient()
+
+  // Current apply gate so the UI warns correctly.
+  const { data: appCfg } = useQuery({
+    queryKey: ['appSettings'],
+    queryFn: fetchAppSettings,
+  })
+  const isRealMode = appCfg?.apply_mode === 'real'
+
+  // Poll the background run status so "running → success/error" is truthful.
+  const { data: runStatus } = useQuery({
+    queryKey: ['pipelineStatus'],
+    queryFn: fetchPipelineStatus,
+    refetchInterval: 3000,
+  })
+  const isRunning = runStatus?.running
+
+  // When the background task finishes, append its real final status once.
+  useEffect(() => {
+    if (runStatus && (runStatus.status === 'success' || runStatus.status === 'error')) {
+      const newLine = `[${new Date().toLocaleTimeString()}] ${runStatus.status.toUpperCase()}: ${runStatus.message}`
+      setLog(prev => (prev[prev.length - 1] === newLine ? prev : [...prev, newLine]))
+    }
+  }, [runStatus])
 
   const runMutation = useMutation({
     mutationFn: triggerPipeline,
     onMutate: () => {
-      setIsRunning(true)
-      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Initializing background scrapers and LLM engines...`])
+      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] Submitting background pipeline run...`])
     },
     onSuccess: (data) => {
-      setIsRunning(false)
-      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] SUCCESS: ${data.message}`])
+      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] STARTED: ${data.message}`])
+      queryClient.invalidateQueries({ queryKey: ['pipelineStatus'] })
     },
     onError: (err) => {
-      setIsRunning(false)
-      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: ${err.message || "Failed to complete pipeline runs."}`])
-    }
+      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ERROR: ${err.response?.data?.detail || err.message || "Failed to start pipeline run."}`])
+    },
   })
+
   const { data: cookies = [] } = useQuery({
   queryKey: ['cookieHealth'],
   queryFn: fetchCookieHealth,
@@ -34,18 +56,33 @@ export default function Settings() {
       {/* Manual Pipeline Activation Card */}
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-blue-400">Manual Job Run</h3>
+          <h3 className="text-lg font-semibold text-blue-400">Run Full Pipeline (One Click)</h3>
           <p className="text-xs text-gray-400 mt-1">
-            Trigger the automatic scraper loop immediately. This will login using cookies, scrape Internshala + Naukri, score listings against your resumes, run the cover letter generator, and try to apply.
+            Click once and it does everything automatically: scrape Internshala + Naukri → score against your resumes → pick the best resume → generate a cover letter → apply → scan responses → update statuses.
           </p>
+          <div className="mt-2 inline-flex items-center gap-2">
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
+              isRealMode ? 'bg-green-600/20 text-green-400' : 'bg-yellow-600/20 text-yellow-400'
+            }`}>
+              {appCfg ? (isRealMode ? 'Ready to apply for real' : 'Dry-run: won\u2019t submit') : '…'}
+            </span>
+            <span className="text-[10px] text-gray-500">
+              {isRealMode
+                ? 'Applications will be sent to employers.'
+                : 'Set APPLY_MODE=real in .env to send for real.'}
+            </span>
+          </div>
         </div>
 
         <button
-          onClick={() => runMutation.mutate()}
+          onClick={() => {
+            if (isRealMode && !window.confirm("This will send REAL applications to employers. Continue?")) return
+            runMutation.mutate()
+          }}
           disabled={isRunning}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold disabled:opacity-30 transition"
         >
-          {isRunning ? "Executing Pipeline..." : "Trigger Scrape & Apply Loop"}
+          {isRunning ? "Running Pipeline..." : isRealMode ? "Run Full Pipeline (Applies)" : "Run Full Pipeline (Dry-run)"}
         </button>
 
         {log.length > 0 && (
@@ -91,7 +128,7 @@ export default function Settings() {
           <div className="bg-gray-950 p-3 border border-gray-800 rounded space-y-1">
             <p className="text-gray-500 font-bold">Local AI Model</p>
             <p className="text-blue-400">Ollama qwen2.5:1.5b</p>
-            <p className="text-[10px] text-gray-600">URL: http://host.docker.internal:11434</p>
+            <p className="text-[10px] text-gray-600">URL: http://ollama:11434 (in-network)</p>
           </div>
           <div className="bg-gray-950 p-3 border border-gray-800 rounded space-y-1">
             <p className="text-gray-500 font-bold">Active Database</p>

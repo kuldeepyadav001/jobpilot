@@ -1,5 +1,4 @@
 import os
-import asyncio
 from datetime import date
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -11,8 +10,6 @@ from models.application import Application
 from models.status_history import StatusHistory
 from models.apply_log import ApplyLog
 from engine.email_sender import send_job_application_email
-from engine.apply import PlaywrightApplyEngine
-from core.config import settings
 
 # Daily apply cap per portal
 MAX_DAILY_APPLIES = 10
@@ -90,6 +87,7 @@ async def execute_job_application(
 
     # --- SMART ROUTING (if method is 'auto') ---
     if method == "auto":
+        from engine.apply import PlaywrightApplyEngine  # lazy: avoid importing Playwright otherwise
         engine = PlaywrightApplyEngine(headless=True)
         detected_method, detected_email = await engine.detect_apply_method(job.url, job.portal)
         method = detected_method
@@ -146,6 +144,7 @@ async def execute_job_application(
     # --- ROUTE B: Portal Apply ---
     elif method == "portal":
         if job.portal == "internshala":
+            from engine.apply import PlaywrightApplyEngine
             engine = PlaywrightApplyEngine(headless=True)
             final_status = await engine.apply_to_internshala(job.url, cover_letter)
         else:

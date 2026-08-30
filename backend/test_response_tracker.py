@@ -2,7 +2,6 @@ from core.database import SessionLocal
 from engine.classifier import classify_email_content
 from engine.email_tracker import process_incoming_email
 from models.application import Application
-from models.response import Response
 from models.status_history import StatusHistory
 
 

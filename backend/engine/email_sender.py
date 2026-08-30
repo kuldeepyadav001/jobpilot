@@ -19,9 +19,10 @@ def send_job_application_email(
         logger.error("[SMTP] Email credentials not configured in environment.")
         return False
 
-    # Guard clause: Protect against unintended real emails during local testing
-    if settings.environment != "production":
-        logger.warning(f"[SMTP] SAFE MODE: Rerouting email meant for <{to_email}> to self <{settings.email_address}>")
+    # APPLY GATE: Only send to the real recipient when apply_mode='real'.
+    # Otherwise reroute to self so nothing is actually dispatched to an employer.
+    if settings.apply_mode != "real":
+        logger.warning(f"[SMTP] DRY_RUN: rerouting email meant for <{to_email}> to self <{settings.email_address}>. Set APPLY_MODE=real to send for real.")
         to_email = settings.email_address
 
     msg = MIMEMultipart()

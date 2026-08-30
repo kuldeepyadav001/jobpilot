@@ -4,7 +4,7 @@ from loguru import logger
 from models.resume import Resume
 from models.job import Job
 from engine.parser import parse_resume_file
-from engine.matcher import select_best_resume, compute_hybrid_match_score
+from engine.matcher import select_best_resume
 
 
 def register_resume(

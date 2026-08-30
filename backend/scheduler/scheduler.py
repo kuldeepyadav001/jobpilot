@@ -18,9 +18,13 @@ scheduler = BackgroundScheduler(executors=executors, job_defaults=job_defaults)
 
 
 def run_pipeline_sync_wrapper():
-    """Wrapper to run the async job pipeline in a synchronous scheduler context thread."""
+    """Wrapper to run the async job pipeline in a synchronous scheduler context thread.
+
+    Uses settings.auto_apply so the scheduled run does NOT apply unless explicitly enabled —
+    applying is triggered manually by the user (the APPLY GATE).
+    """
     logger.info("[Scheduler] Executing scheduled pipeline task...")
-    asyncio.run(run_daily_automation_pipeline())
+    asyncio.run(run_daily_automation_pipeline(apply=settings.auto_apply))
 
 
 def start_scheduler():

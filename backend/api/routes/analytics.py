@@ -7,8 +7,8 @@ from models.application import Application
 from models.analytics import AnalyticsSnapshot
 from api.schemas import DashboardStats, SnapshotOut
 from datetime import date
-from sqlalchemy import func
 from models.apply_log import ApplyLog
+from engine.application_service import MAX_DAILY_APPLIES
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
@@ -41,6 +41,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         total_rejected=total_rejected,
         avg_match_score=round(float(avg_score), 2) if avg_score else 0.0,
         portal_breakdown=portal_breakdown,
+        daily_applies=daily_applies,
+        daily_cap=MAX_DAILY_APPLIES,
     )
 
 

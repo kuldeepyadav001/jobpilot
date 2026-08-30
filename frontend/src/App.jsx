@@ -77,11 +77,11 @@ function Layout({ children }) {
             </button>
             <div className="flex items-center gap-3 pl-5 border-l border-slate-200">
               <div className="text-right hidden md:block">
-                <p className="text-xs font-extrabold text-slate-800">Kuldeep Yadav</p>
+                <p className="text-xs font-extrabold text-slate-800">Job Hunter</p>
                 <p className="text-[10px] text-slate-400 font-semibold">Admin</p>
               </div>
               <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-bold text-sm shadow-xs">
-                KY
+                JP
               </div>
             </div>
           </div>

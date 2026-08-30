@@ -4,7 +4,6 @@ from core.database import SessionLocal
 from engine.application_service import execute_job_application
 from models.job import Job
 from models.resume import Resume
-from core.config import settings
 
 
 async def main():

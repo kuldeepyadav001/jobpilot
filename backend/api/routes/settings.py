@@ -1,7 +1,7 @@
 import os
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional
+from core.config import settings
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -11,6 +11,22 @@ class CookieHealth(BaseModel):
     cookie_configured: bool
     cookie_length: int
     status: str  # "configured" | "missing" | "empty"
+
+
+class AppSettings(BaseModel):
+    apply_mode: str          # 'real' | 'dry_run'
+    auto_apply: bool         # whether the scheduled run also applies
+    candidate_name: str
+
+
+@router.get("/app", response_model=AppSettings)
+def app_settings():
+    """Returns non-secret application settings so the UI can warn about apply mode."""
+    return AppSettings(
+        apply_mode=settings.apply_mode,
+        auto_apply=settings.auto_apply,
+        candidate_name=settings.candidate_name,
+    )
 
 
 @router.get("/cookie-health", response_model=list[CookieHealth])

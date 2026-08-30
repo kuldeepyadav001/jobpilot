@@ -1,7 +1,7 @@
 import re
-from typing import Optional
 from loguru import logger
 from ai.ollama_client import OllamaClient
+from core.config import settings
 SYSTEM_PROMPT = """You are an expert recruiter and elite resume writer.
 Your job is to write a highly tailored, direct, and compelling email cover letter (maximum 150 words).
 
@@ -22,11 +22,12 @@ async def generate_tailored_cover_letter(
     """
     Generates a tailored, placeholder-free cover letter using Ollama.
     """
-    # Try to extract the candidate's name from the first line of resume text
-    candidate_name = "kuldeep yadav"  # Default fallback
+    # Candidate name: prefer the configured setting, else derive from the resume's first line.
+    candidate_name = (settings.candidate_name or "").strip()
     first_line = resume_text.strip().split("\n")[0].strip()
-    if len(first_line) < 50 and any(char.isalpha() for char in first_line):
+    if not candidate_name and len(first_line) < 50 and any(char.isalpha() for char in first_line):
         candidate_name = first_line
+    candidate_name = candidate_name or "the applicant"
 
     prompt = f"""
 Write a direct, professional email cover letter for this job:

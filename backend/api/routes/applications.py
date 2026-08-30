@@ -9,7 +9,13 @@ from engine.application_service import log_status_change
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
-VALID_STATUSES = {"applied", "viewed", "responded", "interview", "offer", "rejected"}
+# Full set of application statuses. The Kanban board treats the internal
+# machine statuses ('pending', 'failed', 'needs_manual_action') as visible
+# states so the user can always see and act on every application.
+VALID_STATUSES = {
+    "applied", "viewed", "responded", "interview", "offer", "rejected",
+    "pending", "failed", "needs_manual_action",
+}
 
 
 @router.get("", response_model=list[ApplicationOut])

@@ -7,7 +7,6 @@ from loguru import logger
 from core.database import get_db
 from models.job import Job
 from models.application import Application
-from models.resume import Resume
 
 # Import all route modules (aliasing settings to avoid collision with config.settings)
 from api.routes import (

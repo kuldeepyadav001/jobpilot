@@ -10,6 +10,10 @@ const COLUMNS = [
   { id: 'interview', title: 'Interview', color: 'border-green-500' },
   { id: 'offer', title: 'Offer', color: 'border-emerald-400' },
   { id: 'rejected', title: 'Rejected', color: 'border-red-500' },
+  // Internal machine states — surfaced so no application is ever hidden.
+  { id: 'pending', title: 'Pending', color: 'border-slate-500' },
+  { id: 'needs_manual_action', title: 'Needs Action', color: 'border-orange-500' },
+  { id: 'failed', title: 'Failed', color: 'border-rose-500' },
 ]
 
 export default function Kanban() {
@@ -63,7 +67,7 @@ export default function Kanban() {
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-6 gap-3 flex-1 overflow-x-auto min-w-[1000px]">
+        <div className="grid grid-cols-9 gap-3 flex-1 overflow-x-auto min-w-[1400px]">
           {COLUMNS.map((col) => {
             const colApps = applications.filter((a) => a.status === col.id)
             return (

@@ -1,6 +1,5 @@
 import os
 from typing import Optional, Tuple
-from playwright.async_api import Page
 from loguru import logger
 from scrapers.base import BaseBrowser
 from core.config import settings
@@ -87,7 +86,7 @@ class PlaywrightApplyEngine(BaseBrowser):
                     continue
 
             # Default: No clear apply method found
-            logger.warning(f"[Smart Route] No apply method detected. Defaulting to manual.")
+            logger.warning("[Smart Route] No apply method detected. Defaulting to manual.")
             return "manual", None
 
         except Exception as e:
@@ -126,12 +125,12 @@ class PlaywrightApplyEngine(BaseBrowser):
 
             submit_btn = await page.query_selector("input[type='submit'], button[type='submit'], #submit")
             if submit_btn:
-                if settings.environment == "production":
+                if settings.apply_mode == "real":
                     await submit_btn.click()
                     await page.wait_for_timeout(3000)
                     return "applied"
                 else:
-                    logger.info("[Portal Apply] SAFE MODE: Skipped final submit.")
+                    logger.info("[Portal Apply] DRY_RUN: skipped final submit. Set APPLY_MODE=real to submit for real.")
                     return "applied"
 
             return "needs_manual_action"

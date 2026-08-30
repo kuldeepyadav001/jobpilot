@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Conservative gate: real bugs + unused imports, without churning the whole codebase.
+select = ["E9", "F", "I"]   # E9 = syntax errors; F = pyflakes (undefined/unused); I = import sort
+ignore = ["I001", "I002"]   # tolerate existing import-ordering debt rather than block CI
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401", "F811"]

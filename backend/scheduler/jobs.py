@@ -5,6 +5,7 @@ from core.database import SessionLocal
 from core.config import settings
 from scrapers.service import run_all_scrapers
 from engine.service import score_unmatched_jobs
+from engine.matcher import select_best_resume
 from engine.application_service import execute_job_application
 from engine.email_tracker import scan_inbox
 from ai.cover_letter import generate_tailored_cover_letter
@@ -12,7 +13,51 @@ from models.job import Job
 from models.resume import Resume
 from models.company import Company
 from models.analytics import AnalyticsSnapshot
-from engine.application_service import execute_job_application, can_apply_today
+from engine.application_service import can_apply_today
+
+async def _run_apply_step(db: Session):
+    """Selects qualified, non-applied, non-blacklisted jobs and applies to each
+    using the best-matching resume. Respects the daily per-portal rate cap."""
+    active_resumes = db.query(Resume).filter(Resume.is_active == True).all()
+    if not active_resumes:
+        logger.warning("[Pipeline] Apply step skipped: No active resume found.")
+        return
+
+    qualified_jobs = (
+        db.query(Job)
+        .filter(Job.is_applied == False)
+        .filter(Job.is_blacklisted == False)
+        .filter(Job.match_score >= settings.match_score_threshold)
+        .order_by(Job.match_score.desc())
+        .limit(10)
+        .all()
+    )
+
+    logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs with {len(active_resumes)} active resume(s).")
+    for job in qualified_jobs:
+        if not can_apply_today(db, job.portal):
+            logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
+            break
+
+        # Pick the single BEST resume for THIS job (auto-pick best resume).
+        jd_text = f"{job.title} {job.description or ''}"
+        best_resume, best_score = select_best_resume(jd_text, active_resumes)
+        if best_resume is None:
+            logger.warning(f"[Pipeline] No best resume could be selected for '{job.title}'. Skipping.")
+            continue
+
+        logger.info(f"[Pipeline] Applying to: '{job.title}' (Match: {job.match_score}%) "
+                    f"| Best resume: '{best_resume.name}' (score {best_score:.2f})")
+        cover_letter = await generate_cover_letter_for_job(db, job, best_resume)
+
+        await execute_job_application(
+            db=db,
+            job_id=job.id,
+            resume_id=best_resume.id,
+            cover_letter=cover_letter,
+            method="auto"  # Smart routing decides email/portal/manual
+        )
+
 
 async def generate_cover_letter_for_job(db: Session, job: Job, resume: Resume) -> str:
     company = db.query(Company).filter(Company.id == job.company_id).first()
@@ -30,8 +75,21 @@ async def generate_cover_letter_for_job(db: Session, job: Job, resume: Resume) -
         return "Please find attached my resume for your consideration."
 
 
-async def run_daily_automation_pipeline():
-    logger.info("[Pipeline] Starting job automation pipeline cycle...")
+async def run_daily_automation_pipeline(apply: bool | None = None):
+    """Runs one full cycle.
+
+    Args:
+        apply:
+          - True  (manual trigger)  -> also SUBMITS applications (if apply_mode='real').
+          - False (scheduled)       -> scrape + score + track only; never applies.
+          - None  -> fall back to settings.auto_apply for the scheduled path.
+
+    This is the APPLY GATE: the risky submit step only ever runs when the caller
+    explicitly requests it (i.e. your manual button click), never on a timer.
+    """
+    if apply is None:
+        apply = settings.auto_apply
+    logger.info(f"[Pipeline] Starting job automation pipeline cycle (apply={'ON' if apply else 'OFF'})...")
     db = SessionLocal()
     try:
         # Parse SEARCH_KEYWORDS from Settings
@@ -50,40 +108,11 @@ async def run_daily_automation_pipeline():
         logger.info(f"[Pipeline] Scored {scored_count} new listings.")
 
         # STEP 3: Auto-Apply Engine (with Smart Routing + Rate Limiting)
-        logger.info("[Pipeline] Step 3/5: Evaluating qualified jobs for application...")
-        active_resume = db.query(Resume).filter(Resume.is_active == True).first()
-        
-        if not active_resume:
-            logger.warning("[Pipeline] Apply step skipped: No active resume found.")
+        # APPLY GATE: skipped entirely on scheduled runs unless the user enabled AUTO_APPLY.
+        if not apply:
+            logger.info("[Pipeline] Step 3/5: APPLY GATE — automatic run does not apply. Skipping apply step.")
         else:
-            qualified_jobs = (
-                db.query(Job)
-                .filter(Job.is_applied == False)
-                .filter(Job.is_blacklisted == False)
-                .filter(Job.match_score >= settings.match_score_threshold)
-                .order_by(Job.match_score.desc())
-                .limit(10)
-                .all()
-            )
-
-            logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs.")
-            for job in qualified_jobs:
-                # Check rate limit before each apply
-                if not can_apply_today(db, job.portal):
-                    logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
-                    break
-
-                logger.info(f"[Pipeline] Applying to: '{job.title}' (Match: {job.match_score}%)")
-                cover_letter = await generate_cover_letter_for_job(db, job, active_resume)
-                
-                await execute_job_application(
-                    db=db,
-                    job_id=job.id,
-                    resume_id=active_resume.id,
-                    cover_letter=cover_letter,
-                    method="auto"  # Smart routing decides email/portal/manual
-                )
-
+            await _run_apply_step(db)
         # STEP 4: Scan Recruiter Response Emails
         logger.info("[Pipeline] Step 4/5: Syncing recruiter email responses via IMAP...")
         email_count = scan_inbox(db, max_emails=10)
