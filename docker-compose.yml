@@ -79,45 +79,6 @@ services:
     ports:
       - "80:80"
 
-  # --- Monitoring: scrapes the backend /metrics and stores time-series data ---
-  # OPT-IN: these aren't launched by default (they're the biggest idle CPU/RAM
-  # overhead). Start them only when needed with:
-  #   docker compose --profile monitoring up -d
-  prometheus:
-    image: prom/prometheus:v2.53.0
-    container_name: jobpilot_prometheus
-    restart: unless-stopped
-    profiles: ["monitoring"]
-    cpus: 0.5
-    mem_limit: 512m
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"
-
-  grafana:
-    image: grafana/grafana:11.1.0
-    container_name: jobpilot_grafana
-    restart: unless-stopped
-    profiles: ["monitoring"]
-    cpus: 0.25
-    mem_limit: 256m
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-    volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    ports:
-      - "3001:3000"
-    depends_on:
-      - prometheus
-
 volumes:
   postgres_data:
   ollama_data:
-  prometheus_data:
-  grafana_data:

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { fetchDashboard, triggerPipeline, fetchPipelineStatus } from '../api/client'
+import { fetchDashboard, triggerPipeline, fetchPipelineStatus, fetchSystemHealth } from '../api/client'
 import { Briefcase, CheckCircle, Clock, TrendingUp, ChevronRight, Play, Loader2, Sparkles } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
@@ -11,6 +11,10 @@ export default function Dashboard() {
   const { data: stats, isError } = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard, retry: false })
   const { data: runStatus } = useQuery({ queryKey: ['pipelineStatus'], queryFn: fetchPipelineStatus, refetchInterval: 3000, retry: false })
   const isRunning = runStatus?.running
+
+  // Quick-glance health indicator (green = all good; red = something down).
+  const { data: health } = useQuery({ queryKey: ['systemHealth'], queryFn: fetchSystemHealth, refetchInterval: 10000, retry: false })
+  const healthOk = [health?.db, health?.ollama, health?.scheduler].every(c => c?.ok !== false)
 
   const runMutation = useMutation({
     mutationFn: triggerPipeline,
@@ -45,8 +49,15 @@ export default function Dashboard() {
       {/* Hero banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-violet-500 via-purple-500 to-teal-400 p-8 text-white shadow-xl shadow-violet-500/20">
         <div className="relative z-10 max-w-lg">
-          <div className="inline-flex items-center gap-2 text-xs font-bold bg-white/20 rounded-full px-3 py-1 mb-4">
-            <Sparkles className="w-3.5 h-3.5" /> Your automated agent
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="inline-flex items-center gap-2 text-xs font-bold bg-white/20 rounded-full px-3 py-1">
+              <Sparkles className="w-3.5 h-3.5" /> Your automated agent
+            </div>
+            <button onClick={() => navigate('/monitoring')} title="Open System Health"
+              className="inline-flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 rounded-full px-3 py-1 transition">
+              <span className={`w-2 h-2 rounded-full ${healthOk ? 'bg-emerald-300' : 'bg-red-300'} animate-pulse`} />
+              {healthOk ? 'All systems OK' : 'Check status'}
+            </button>
           </div>
           <h2 className="text-3xl font-extrabold mb-2">Welcome Back!</h2>
           <p className="text-white/90 font-medium leading-relaxed">
