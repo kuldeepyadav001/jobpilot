@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Sparkles, Radar, FileSearch, Mail, Gauge } from 'lucide-react'
+import { ArrowRight, Sparkles, Radar, FileSearch, Mail, Gauge, Rocket } from 'lucide-react'
 
 const FEATURES = [
   { icon: Radar, title: 'Auto Scrape', desc: 'Internshala & Naukri on a timer — zero manual scrolling.' },
