@@ -108,7 +108,7 @@ async def execute_job_application(
         db.flush()
         job.is_applied = True
         log_status_change(db, new_app.id, "none", "needs_manual_action", "auto")
-        record_apply(db, job.portal, job.id, "manual")
+        # Manual flag is not a real submission — do NOT consume the daily budget.
         db.commit()
         logger.info(f"[Apply Service] Flagged for manual apply: '{job.title}'")
         return new_app
@@ -153,10 +153,14 @@ async def execute_job_application(
 
     # --- COMMIT STATE ---
     new_app.status = final_status
-    job.is_applied = True if final_status in ("applied", "needs_manual_action") else False
+    # Mark the job as handled for any terminal routing so it is never re-attempted
+    # by the auto-apply step (no duplicate 'Needs Action' cards per cycle).
+    job.is_applied = final_status in ("applied", "needs_manual_action")
     log_status_change(db, new_app.id, "none", final_status, "auto")
 
-    if final_status in ("applied", "needs_manual_action"):
+    # Daily apply BUDGET is only consumed by a real submission. 'needs_manual_action'
+    # jobs did not actually submit anything, so they must not burn a slot.
+    if final_status == "applied":
         record_apply(db, job.portal, job.id, method)
 
     db.commit()

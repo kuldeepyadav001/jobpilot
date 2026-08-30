@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     search_keywords: str = "python developer, react developer"
     # How many highest-scoring jobs to target per apply cycle.
     apply_target_count: int = 10
+    # Where to scrape (used by the pipeline; overrides the old hardcoded "remote").
+    search_location: str = "remote"
+    # How many cards to pull per portal per keyword in one scrape cycle.
+    max_per_portal: int = 5
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore", env_prefix="")
 

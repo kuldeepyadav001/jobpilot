@@ -60,28 +60,63 @@ def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
 
 
 async def run_all_scrapers(db: Session, keywords: List[str], location: str = "remote", max_per_portal: int = 10) -> dict:
-    """Runs scrapers over multiple keywords sequentially and returns aggregated stats."""
+    """Runs scrapers over multiple keywords sequentially and returns aggregated stats.
+
+    Each keyword runs in its own try/except so one failing keyword (or a single
+    portal failure) never aborts the whole cycle.
+    """
     total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
-    
+
     logger.info(f"Starting multi-keyword scraper loop. Keywords: {keywords}")
-    
+
     for kw in keywords:
         kw_clean = kw.strip()
         if not kw_clean:
             continue
-            
+
         logger.info(f"Scraping keyword: '{kw_clean}'")
-        internshala = InternshalaScraper()
-        naukri = NaukriScraper()
+        try:
+            all_jobs = await scrape_keyword(kw_clean, location, max_per_portal)
+            stats = save_scraped_jobs(db, all_jobs)
+        except Exception as e:
+            logger.error(f"[Scraper] Keyword '{kw_clean}' failed (isolated, continuing): {e}")
+            stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
 
-        ishala_jobs = await internshala.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
-        naukri_jobs = await naukri.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
-
-        all_jobs = ishala_jobs + naukri_jobs
-        stats = save_scraped_jobs(db, all_jobs)
-        
         for key in total_stats:
             total_stats[key] += stats.get(key, 0)
 
     logger.info(f"Completed multi-keyword scraper run. Aggregated stats: {total_stats}")
     return total_stats
+
+
+async def scrape_keyword(keyword: str, location: str, max_per_portal: int) -> List[ScrapedJob]:
+    """Scrapes one keyword across all portals and returns the combined raw list (no DB save)."""
+    internshala = InternshalaScraper()
+    naukri = NaukriScraper()
+
+    ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal)
+    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal)
+    return ishala_jobs + naukri_jobs
+
+
+async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal: int) -> dict:
+    """Validation harness: runs the scrapers WITHOUT saving to the DB and reports
+    per-portal/per-keyword results. Used to verify scrapers work against the live
+    portals before trusting the real pipeline."""
+    results = []
+    for kw in keywords:
+        kw_clean = kw.strip()
+        if not kw_clean:
+            continue
+        entry = {"keyword": kw_clean, "total": 0, "by_portal": {}, "sample": [], "errors": []}
+        for portal_name, scraper in (("internshala", InternshalaScraper()), ("naukri", NaukriScraper())):
+            try:
+                jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
+                entry["total"] += len(jobs)
+                entry["by_portal"][portal_name] = len(jobs)
+                for j in jobs[:3]:
+                    entry["sample"].append({"portal": j.portal, "title": j.title, "company": j.company_name, "url": j.url})
+            except Exception as e:
+                entry["errors"].append(f"{portal_name}: {type(e).__name__}: {e}")
+        results.append(entry)
+    return {"results": results, "keywords": keywords, "location": location, "max_per_portal": max_per_portal}

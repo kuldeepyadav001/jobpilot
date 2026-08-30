@@ -114,8 +114,11 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
             kw_list = ["python developer"]
 
         # STEP 1: Scrape Jobs for all keywords
-        logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list}...")
-        scrape_stats = await run_all_scrapers(db, keywords=kw_list, location="remote", max_per_portal=5)
+        logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list} "
+                    f"(location={settings.search_location}, max_per_portal={settings.max_per_portal})...")
+        scrape_stats = await run_all_scrapers(
+            db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
+        )
         logger.info(f"[Pipeline] Scraped jobs statistics: {scrape_stats}")
 
         # STEP 2: Score Jobs

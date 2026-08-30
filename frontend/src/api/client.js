@@ -17,6 +17,7 @@ export const fetchDashboard = () => api.get('/analytics/dashboard').then(r => r.
 export const fetchSnapshots = () => api.get('/analytics/snapshots').then(r => r.data)
 export const fetchSystemHealth = () => api.get('/system/health').then(r => r.data)
 export const fetchMetricsText = () => api.get('/metrics').then(r => r.data)
+export const runScraperDiagnostics = (params = {}) => api.get('/scrapers/diagnostics', { params }).then(r => r.data)
 export const fetchResponses = () => api.get('/responses').then(r => r.data)
 export const triggerEmailScan = () => api.post('/responses/scan').then(r => r.data)
 // Pipeline now runs in the background; POST returns immediately, GET polls status.

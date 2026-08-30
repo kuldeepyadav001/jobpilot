@@ -41,6 +41,7 @@ class ApplicationOut(BaseModel):
     status: str
     cover_letter: Optional[str]
     notes: Optional[str] = None
+    job_url: Optional[str] = None
 
     class Config:
         from_attributes = True

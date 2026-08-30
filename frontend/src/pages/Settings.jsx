@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerPipeline, fetchPipelineStatus, fetchAppSettings } from '../api/client'
+import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics } from '../api/client'
 import { fetchCookieHealth } from '../api/client'
-import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer } from 'lucide-react'
+import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer, Radar, ExternalLink } from 'lucide-react'
 
 export default function Settings() {
   const [log, setLog] = useState([])
@@ -34,6 +34,12 @@ export default function Settings() {
   })
 
   const { data: cookies = [] } = useQuery({ queryKey: ['cookieHealth'], queryFn: fetchCookieHealth, refetchInterval: 60000 })
+
+  const diagMutation = useMutation({
+    // Long-running: scrapes live portals but saves nothing.
+    mutationFn: runScraperDiagnostics,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scraperDiag'] }),
+  })
 
   const infoCards = [
     { icon: Cpu, label: 'Local AI Model', value: 'Ollama qwen2.5:1.5b', sub: 'URL: http://ollama:11434 (in-network)' },
@@ -102,6 +108,56 @@ export default function Settings() {
           ))}
         </div>
         <p className="text-xs text-ink-faint">If a cookie shows "Missing" or "Too Short", update it in your .env file and restart the backend.</p>
+      </div>
+
+      {/* Scraper validation (dry-run) */}
+      <div className="card p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Radar className="w-4 h-4 text-brand" />
+          <h3 className="text-base font-semibold">Validate Scrapers (Dry-run)</h3>
+        </div>
+        <p className="text-xs text-ink-soft">
+          Scrapes Internshala + Naukri for your keywords but <strong>saves nothing</strong> — it only reports
+          how many jobs each portal returned. Use this to confirm the scrapers and cookies work before going real.
+          Modify keywords/location via <code className="text-ink">SEARCH_KEYWORDS</code>, <code className="text-ink">SEARCH_LOCATION</code> in .env.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => diagMutation.mutate({})} disabled={diagMutation.isPending} className="btn-ghost">
+            {diagMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping…</> : <><Radar className="w-4 h-4" /> Run Scraper Test</>}
+          </button>
+          {appCfg && <span className="text-[10px] text-ink-faint self-center">Keywords: {appCfg.apply_mode ? 'from .env' : 'from .env'}</span>}
+        </div>
+
+        {diagMutation.data && (
+          <div className="bg-surface2 border border-line rounded-xl p-4 space-y-3">
+            {diagMutation.data.results.map((r, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-3 mb-1.5">
+                  <span className="font-bold text-sm text-ink">{r.keyword}</span>
+                  {Object.entries(r.by_portal).map(([p, n]) => (
+                    <span key={p} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${n > 0 ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'}`}>
+                      {p}: {n}
+                    </span>
+                  ))}
+                </div>
+                {r.sample && r.sample.length > 0 && (
+                  <ul className="text-xs text-ink-soft space-y-0.5">
+                    {r.sample.map((s, j) => (
+                      <li key={j} className="flex items-center gap-1.5">
+                        <span className="uppercase text-[10px] text-ink-faint">{s.portal}</span>
+                        <span className="font-semibold text-ink">{s.title}</span>
+                        <span className="text-ink-faint">@ {s.company}</span>
+                        <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline"><ExternalLink className="w-3 h-3 inline" /></a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {r.errors && r.errors.length > 0 && r.errors.map((e, j) => <p key={j} className="text-[11px] text-danger">{e}</p>)}
+              </div>
+            ))}
+          </div>
+        )}
+        {diagMutation.isError && <p className="text-xs text-danger">{diagMutation.error?.response?.data?.detail || 'Scraper test failed (backend offline?).'}</p>}
       </div>
 
       {/* Env summary */}

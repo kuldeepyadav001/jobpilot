@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { fetchApplications, updateAppStatus, updateAppNotes } from '../api/client'
-import { Search, X, Save } from 'lucide-react'
+import { Search, X, Save, ExternalLink, Check } from 'lucide-react'
 
 const COLUMNS = [
   { id: 'applied', title: 'Applied', color: 'border-blue-500', accent: 'text-blue-600' },
@@ -98,6 +98,20 @@ export default function Kanban() {
                                 <span className="uppercase">{app.method}</span>
                                 <span>{new Date(app.applied_at).toLocaleDateString()}</span>
                               </div>
+                              {app.status === 'needs_manual_action' && (
+                                <div className="flex gap-1.5 pt-2" onClick={(e) => e.stopPropagation()}>
+                                  {app.job_url && (
+                                    <a href={app.job_url} target="_blank" rel="noopener noreferrer"
+                                      className="flex-1 inline-flex items-center justify-center gap-1 px-1.5 py-1 bg-brand text-white rounded-md text-[10px] font-bold hover:bg-brand-strong transition">
+                                      <ExternalLink className="w-3 h-3" /> Apply
+                                    </a>
+                                  )}
+                                  <button onClick={() => statusMutation.mutate({ id: app.id, status: 'applied' })}
+                                    className="flex-1 inline-flex items-center justify-center gap-1 px-1.5 py-1 bg-success/15 text-success rounded-md text-[10px] font-bold hover:bg-success/25 transition">
+                                    <Check className="w-3 h-3" /> Done
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </Draggable>
@@ -125,6 +139,13 @@ export default function Kanban() {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-5 text-sm">
+              {selectedApp.status === 'needs_manual_action' && (
+                <div className="bg-warn/10 border border-warn/30 text-warn rounded-xl p-3.5 text-xs leading-relaxed">
+                  <strong className="font-bold">Needs your action.</strong> JobPilot couldn't auto-apply to this one
+                  (it links out to an external/company site, or that portal's auto-apply isn't built yet).
+                  Open the job, apply manually, then click <strong>Mark Applied</strong> to move it out of "Needs Action".
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-4 bg-surface2 p-3.5 border border-line rounded-lg">
                 <div>
                   <p className="label">Channel</p>
@@ -164,7 +185,18 @@ export default function Kanban() {
               </div>
             </div>
 
-            <div className="p-4 bg-surface2 border-t border-line flex justify-end">
+            <div className="p-4 bg-surface2 border-t border-line flex items-center justify-between">
+              <div className="flex gap-2">
+                {selectedApp.job_url && (
+                  <a href={selectedApp.job_url} target="_blank" rel="noopener noreferrer" className="btn-ghost text-xs">
+                    <ExternalLink className="w-3.5 h-3.5" /> Open Job
+                  </a>
+                )}
+                {selectedApp.status === 'needs_manual_action' && (
+                  <button onClick={() => statusMutation.mutate({ id: selectedApp.id, status: 'applied' })}
+                    className="btn-primary text-xs"><Check className="w-3.5 h-3.5" /> Mark Applied</button>
+                )}
+              </div>
               <button onClick={() => setSelectedApp(null)} className="btn-ghost text-xs">Close</button>
             </div>
           </div>

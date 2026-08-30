@@ -21,6 +21,7 @@ from api.routes import (
     pipeline,
     responses,
     system,
+    scrapers,
     settings as settings_route,
 )
 from scheduler.scheduler import start_scheduler, shutdown_scheduler
@@ -57,6 +58,7 @@ app.include_router(pipeline.router, prefix="/api")
 app.include_router(responses.router, prefix="/api")
 app.include_router(settings_route.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
+app.include_router(scrapers.router, prefix="/api")
 
 
 # 5. Lifecycle Event Handlers
