@@ -25,7 +25,7 @@ class NaukriScraper(BaseScraper):
                      enrich: bool = True) -> List[ScrapedJob]:
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("NAUKRI_COOKIE", "")
-        page = await self.init_browser(cookie_string=cookie_string, domain=".naukri.com")
+        page = await self.ensure_page(cookie_string=cookie_string, domain=".naukri.com")
 
         try:
             formatted_kw = keyword.strip().lower().replace(" ", "-")
@@ -129,4 +129,5 @@ class NaukriScraper(BaseScraper):
             logger.error(f"[Naukri] Scraping failed: {e}")
             return jobs
         finally:
-            await self.close()
+            if self.close_browser_on_scrape:
+                await self.close()

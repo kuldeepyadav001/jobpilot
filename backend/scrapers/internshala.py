@@ -23,7 +23,7 @@ class InternshalaScraper(BaseScraper):
                      enrich: bool = True) -> List[ScrapedJob]:
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("INTERNSHALA_COOKIE", "")
-        page = await self.init_browser(cookie_string=cookie_string, domain=".internshala.com")
+        page = await self.ensure_page(cookie_string=cookie_string, domain=".internshala.com")
 
         try:
             query_keyword = keyword.strip().lower().replace(" ", "-")
@@ -123,4 +123,5 @@ class InternshalaScraper(BaseScraper):
             logger.error(f"[Internshala] Scraping failed: {e}")
             return jobs
         finally:
-            await self.close()
+            if self.close_browser_on_scrape:
+                await self.close()

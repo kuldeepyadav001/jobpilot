@@ -3,6 +3,9 @@ services:
     image: postgres:15.5
     container_name: jobpilot_db
     restart: unless-stopped
+    # Resource limits: stop one container from hogging the whole machine / heating it.
+    cpus: 0.5
+    mem_limit: 512m
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -21,6 +24,15 @@ services:
     image: ollama/ollama:latest
     container_name: jobpilot_ollama
     restart: unless-stopped
+    cpus: 2.0
+    mem_limit: 2g
+    environment:
+      # A single-user local tool: process one generation at a time, load only one
+      # model, and unload it a few minutes after a request so idle RAM is freed
+      # (less heat/lag between runs).
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_KEEP_ALIVE: "5m"
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -32,6 +44,9 @@ services:
       dockerfile: ../docker/backend.Dockerfile
     container_name: jobpilot_backend
     restart: unless-stopped
+    # Chromium (Playwright) needs some headroom, so keep this generous but bounded.
+    cpus: 2.0
+    mem_limit: 2g
     depends_on:
       db:
         condition: service_healthy
@@ -57,16 +72,24 @@ services:
       dockerfile: docker/frontend.Dockerfile
     container_name: jobpilot_nginx
     restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 256m
     depends_on:
       - backend
     ports:
       - "80:80"
 
   # --- Monitoring: scrapes the backend /metrics and stores time-series data ---
+  # OPT-IN: these aren't launched by default (they're the biggest idle CPU/RAM
+  # overhead). Start them only when needed with:
+  #   docker compose --profile monitoring up -d
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: jobpilot_prometheus
     restart: unless-stopped
+    profiles: ["monitoring"]
+    cpus: 0.5
+    mem_limit: 512m
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -77,6 +100,9 @@ services:
     image: grafana/grafana:11.1.0
     container_name: jobpilot_grafana
     restart: unless-stopped
+    profiles: ["monitoring"]
+    cpus: 0.25
+    mem_limit: 256m
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}

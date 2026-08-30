@@ -27,6 +27,9 @@ class BaseBrowser:
         self.headless = headless
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
+        # When a scraper is reused across many keywords in one cycle, the caller
+        # sets this to False and closes the browser exactly once at the end.
+        self.close_browser_on_scrape = True
 
     async def init_browser(
         self,
@@ -75,6 +78,23 @@ class BaseBrowser:
 
         page = await self.context.new_page()
         return page
+
+    async def ensure_page(self, cookie_string: Optional[str] = None, domain: Optional[str] = None) -> Page:
+        """Returns a fresh page from an ALREADY-running browser, or starts one.
+
+        This is the reuse path: when a scraper drives multiple keywords in one
+        cycle, the browser/context is created once and reused instead of being
+        relaunched (and closed) for every keyword — the single biggest CPU/heat
+        win in the scrape loop. Falls back to init_browser() when not yet started.
+        """
+        if self.browser is not None and self.context is not None:
+            try:
+                return await self.context.new_page()
+            except Exception:
+                # Browser likely crashed — reset and relaunch cleanly.
+                self.browser = None
+                self.context = None
+        return await self.init_browser(cookie_string=cookie_string, domain=domain)
 
     async def check_session_valid(self, page: Page, portal: str) -> bool:
         """

@@ -1,5 +1,5 @@
 import re
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from loguru import logger
 from models.company import Company
@@ -77,35 +77,64 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
 
     Each keyword runs in its own try/except so one failing keyword (or a single
     portal failure) never aborts the whole cycle.
+
+    PERFORMANCE: ONE browser per portal is launched and reused across ALL keywords,
+    then closed once at the end. (Previously a fresh Chromium was launched and
+    closed for every keyword × portal — 20 launches per 10-keyword cycle — which
+    spiked CPU and heat on the host.)
     """
     total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
 
     logger.info(f"Starting multi-keyword scraper loop. Keywords: {keywords}")
 
-    for kw in keywords:
-        kw_clean = kw.strip()
-        if not kw_clean:
-            continue
+    # Launch the browsers once; reuse them across the whole cycle.
+    internshala = InternshalaScraper()
+    naukri = NaukriScraper()
+    internshala.close_browser_on_scrape = False
+    naukri.close_browser_on_scrape = False
 
-        logger.info(f"Scraping keyword: '{kw_clean}'")
-        try:
-            all_jobs = await scrape_keyword(kw_clean, location, max_per_portal)
-            stats = save_scraped_jobs(db, all_jobs)
-        except Exception as e:
-            logger.error(f"[Scraper] Keyword '{kw_clean}' failed (isolated, continuing): {e}")
-            stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+    try:
+        for kw in keywords:
+            kw_clean = kw.strip()
+            if not kw_clean:
+                continue
 
-        for key in total_stats:
-            total_stats[key] += stats.get(key, 0)
+            logger.info(f"Scraping keyword: '{kw_clean}'")
+            try:
+                all_jobs = await scrape_keyword(
+                    kw_clean, location, max_per_portal,
+                    internshala=internshala, naukri=naukri,
+                )
+                stats = save_scraped_jobs(db, all_jobs)
+            except Exception as e:
+                logger.error(f"[Scraper] Keyword '{kw_clean}' failed (isolated, continuing): {e}")
+                stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+
+            for key in total_stats:
+                total_stats[key] += stats.get(key, 0)
+    finally:
+        await internshala.close()
+        await naukri.close()
 
     logger.info(f"Completed multi-keyword scraper run. Aggregated stats: {total_stats}")
     return total_stats
 
 
-async def scrape_keyword(keyword: str, location: str, max_per_portal: int, enrich: bool = True) -> List[ScrapedJob]:
-    """Scrapes one keyword across all portals and returns the combined raw list (no DB save)."""
-    internshala = InternshalaScraper()
-    naukri = NaukriScraper()
+async def scrape_keyword(
+    keyword: str,
+    location: str,
+    max_per_portal: int,
+    enrich: bool = True,
+    internshala: Optional[InternshalaScraper] = None,
+    naukri: Optional[NaukriScraper] = None,
+) -> List[ScrapedJob]:
+    """Scrapes one keyword across all portals and returns the combined raw list (no DB save).
+
+    Pass pre-created `internshala`/`naukri` instances to reuse their browser across
+    keywords; otherwise fresh instances (with their own browser) are used.
+    """
+    internshala = internshala or InternshalaScraper()
+    naukri = naukri or NaukriScraper()
 
     ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
     naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
@@ -117,19 +146,28 @@ async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal:
     per-portal/per-keyword results. Used to verify scrapers work against the live
     portals before trusting the real pipeline."""
     results = []
-    for kw in keywords:
-        kw_clean = kw.strip()
-        if not kw_clean:
-            continue
-        entry = {"keyword": kw_clean, "total": 0, "by_portal": {}, "sample": [], "errors": []}
-        for portal_name, scraper in (("internshala", InternshalaScraper()), ("naukri", NaukriScraper())):
-            try:
-                jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal, enrich=False)
-                entry["total"] += len(jobs)
-                entry["by_portal"][portal_name] = len(jobs)
-                for j in jobs[:3]:
-                    entry["sample"].append({"portal": j.portal, "title": j.title, "company": j.company_name, "url": j.url})
-            except Exception as e:
-                entry["errors"].append(f"{portal_name}: {type(e).__name__}: {e}")
-        results.append(entry)
+    # Reuse one browser per portal across all keywords, then close once.
+    internshala = InternshalaScraper()
+    naukri = NaukriScraper()
+    internshala.close_browser_on_scrape = False
+    naukri.close_browser_on_scrape = False
+    try:
+        for kw in keywords:
+            kw_clean = kw.strip()
+            if not kw_clean:
+                continue
+            entry = {"keyword": kw_clean, "total": 0, "by_portal": {}, "sample": [], "errors": []}
+            for portal_name, scraper in (("internshala", internshala), ("naukri", naukri)):
+                try:
+                    jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal, enrich=False)
+                    entry["total"] += len(jobs)
+                    entry["by_portal"][portal_name] = len(jobs)
+                    for j in jobs[:3]:
+                        entry["sample"].append({"portal": j.portal, "title": j.title, "company": j.company_name, "url": j.url})
+                except Exception as e:
+                    entry["errors"].append(f"{portal_name}: {type(e).__name__}: {e}")
+            results.append(entry)
+    finally:
+        await internshala.close()
+        await naukri.close()
     return {"results": results, "keywords": keywords, "location": location, "max_per_portal": max_per_portal}
