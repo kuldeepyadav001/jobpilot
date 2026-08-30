@@ -19,7 +19,10 @@
 - ✅ Kanban: search/filter bar, per-status color coding, editable notes (new `PATCH /applications/{id}/notes`), richer detail modal.
 - ✅ New **Monitoring** page (/monitoring): live health cards (DB/Ollama/scheduler/pipeline), cookie status, Prometheus metrics viewer, Grafana link.
 - ✅ Apply-selection switched to **top-N by score** (`select_apply_targets`, `APPLY_TARGET_COUNT`) with `MATCH_SCORE_THRESHOLD` as an optional soft floor (default 0 = off) — fixes the "threshold 20 blocks every apply" bug.
-- ⏳ **Full UI restyle (0–100, responsive, real)**: pending the user's UI reference — see comment in `docs/WAVE2_UI_FEATURES_REPORT.md`.
+- ⏳ **Full UI restyle (0–100, responsive, real)**: ✅ DONE — design-token system (light EdTech + dark), cinematic Perplexity-style Landing (`/`), working light/dark toggle, retokened all 8 pages. ⏳ Verify on browser + Docker.
+- ✅ Apply top-N select now `select_apply_targets()` + `APPLY_TARGET_COUNT`; `MATCH_SCORE_THRESHOLD=0` default (silently-fixed the "threshold 20 blocks all applies" bug).
+- ✅ Monitoring page wired to `/api/system/health` + `/metrics`; Prometheus + Grafana in compose.
+- ⏳ Next: scraper live-validation + score calibration ("increase the percentage") — see Wave notes.
 
 ## Wave 3 — Security
 - **W3.1 (H1)** Add auth (API token / login) at minimum on `/pipeline`, `/applications`, `/resumes`, `/settings`. Use `SECRET_KEY` (currently dead).

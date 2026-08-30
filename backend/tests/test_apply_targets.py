@@ -30,14 +30,14 @@ def _seed_jobs(s, scores, applied_urls=None, blacklisted_urls=None):
 
 
 def test_top_n_ordering(session):
-    ids = _seed_jobs(session, [10, 40, 30, 20])
+    _seed_jobs(session, [10, 40, 30, 20])
     targets = select_apply_targets(session, threshold=0, target_count=2)
     # Top 2 by score = 40 and 30
     assert [j.match_score for j in targets] == [40.0, 30.0]
 
 
 def test_threshold_filters(session):
-    ids = _seed_jobs(session, [10, 40, 30, 20])
+    _seed_jobs(session, [10, 40, 30, 20])
     targets = select_apply_targets(session, threshold=25, target_count=10)
     assert all(j.match_score >= 25 for j in targets)
     assert len(targets) == 2  # 40 and 30
