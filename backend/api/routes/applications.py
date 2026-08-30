@@ -38,6 +38,7 @@ def list_applications(db: Session = Depends(get_db)):
             cover_letter=a.cover_letter,
             notes=a.notes,
             job_url=job.url if job else None,
+            job_type=(job.job_type if job else "job"),
         ))
     return result
 
@@ -69,6 +70,7 @@ def update_notes(app_id: int, req: NotesUpdateRequest, db: Session = Depends(get
         cover_letter=app.cover_letter,
         notes=app.notes,
         job_url=job.url if job else None,
+            job_type=(job.job_type if job else "job"),
     )
 
 
@@ -102,4 +104,5 @@ def update_status(app_id: int, req: StatusUpdateRequest, db: Session = Depends(g
         cover_letter=app.cover_letter,
         notes=app.notes,
         job_url=job.url if job else None,
+            job_type=(job.job_type if job else "job"),
     )

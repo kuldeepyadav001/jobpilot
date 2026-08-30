@@ -43,8 +43,12 @@ def test_upgrade_head_creates_expected_schema(tmp_path):
         resp_cols = {r[1] for r in conn.execute("PRAGMA table_info(responses)")}
         assert "message_id" in resp_cols
 
+        # The job_type (job vs internship) column must exist on jobs
+        job_cols = {r[1] for r in conn.execute("PRAGMA table_info(jobs)")}
+        assert "job_type" in job_cols
+
         # Alembic version recorded at head
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        assert version == "a2b3c4d5e6f7"
+        assert version == "b4e6c8d9a1f2"
     finally:
         conn.close()

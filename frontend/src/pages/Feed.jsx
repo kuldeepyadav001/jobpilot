@@ -18,6 +18,7 @@ export default function Feed() {
   const [search, setSearch] = useState(searchParams.get('q') || '')
   const [portal, setPortal] = useState('')
   const [minScore, setMinScore] = useState('')
+  const [jobType, setJobType] = useState('all')  // all | job | internship
   const [expandedJobId, setExpandedJobId] = useState(null)
 
   useEffect(() => {
@@ -26,11 +27,12 @@ export default function Feed() {
   }, [searchParams])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['jobs', page, search, portal, minScore],
+    queryKey: ['jobs', page, search, portal, minScore, jobType],
     queryFn: () => fetchJobs({
       page, page_size: 15,
       search: search || undefined, portal: portal || undefined,
       min_score: minScore ? parseFloat(minScore) : undefined,
+      job_type: jobType === 'all' ? undefined : jobType,
     }),
     retry: false,
   })
@@ -51,6 +53,15 @@ export default function Feed() {
             <input type="text" placeholder="Search keyword..." value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               className="input pl-9 w-48" />
+          </div>
+          {/* Jobs vs Internships — keeps them a little separate */}
+          <div className="inline-flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1">
+            {[['all', 'All'], ['job', 'Jobs'], ['internship', 'Internships']].map(([val, label]) => (
+              <button key={val} onClick={() => { setJobType(val); setPage(1) }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${jobType === val ? 'bg-brand text-white shadow' : 'text-ink-faint hover:text-ink'}`}>
+                {label}
+              </button>
+            ))}
           </div>
           <select value={portal} onChange={e => { setPortal(e.target.value); setPage(1) }} className="input cursor-pointer">
             <option value="">All Portals</option>
@@ -97,6 +108,9 @@ export default function Feed() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <ScoreBadge score={job.match_score} />
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${job.job_type === 'internship' ? 'bg-warn/15 text-warn' : 'bg-blue-50 text-blue-600'}`} title={job.job_type === 'internship' ? 'Internship' : 'Job'}>
+                          {job.job_type === 'internship' ? 'I' : 'J'}
+                        </span>
                         <span className="text-[10px] uppercase font-bold text-ink-faint bg-surface2 px-2 py-0.5 rounded">{job.portal}</span>
                         {job.is_applied && (
                           <span className="text-[10px] font-bold bg-brand-soft text-brand px-2 py-0.5 rounded-full flex items-center gap-1">

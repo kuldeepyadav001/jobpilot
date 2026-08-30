@@ -14,6 +14,7 @@ class Job(Base):
     salary_min = Column(Integer, nullable=True)
     salary_max = Column(Integer, nullable=True)
     description = Column(Text, nullable=True)
+    job_type = Column(String(20), default="job", index=True)  # "job" | "internship"
     url = Column(String(1000), unique=True, nullable=False)
     scraped_at = Column(DateTime(timezone=True), server_default=func.now())
     match_score = Column(Float, nullable=True, index=True)

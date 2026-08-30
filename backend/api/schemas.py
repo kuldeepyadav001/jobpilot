@@ -14,6 +14,7 @@ class JobOut(BaseModel):
     salary_max: Optional[int]
     description: Optional[str]
     url: str
+    job_type: str = "job"  # "job" | "internship"
     match_score: Optional[float]
     is_applied: bool
     scraped_at: Optional[datetime]
@@ -42,6 +43,7 @@ class ApplicationOut(BaseModel):
     cover_letter: Optional[str]
     notes: Optional[str] = None
     job_url: Optional[str] = None
+    job_type: str = "job"  # "job" | "internship"
 
     class Config:
         from_attributes = True

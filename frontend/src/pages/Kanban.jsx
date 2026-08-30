@@ -148,7 +148,10 @@ export default function Kanban() {
                               onClick={() => { setSelectedApp(app); setNotesDraft({ [app.id]: app.notes || '' }) }}
                               className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer group ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
                               <div className="flex items-start justify-between gap-1 mb-1">
-                                <p className="font-bold text-ink line-clamp-1">{app.job_title}</p>
+                                <p className="font-bold text-ink line-clamp-1">
+                                  <span className={`inline-block align-middle mr-1.5 text-[9px] font-black px-1.5 py-0.5 rounded ${app.job_type === 'internship' ? 'bg-warn/15 text-warn' : 'bg-blue-50 text-blue-600'}`} title={app.job_type === 'internship' ? 'Internship' : 'Job'}>{app.job_type === 'internship' ? 'I' : 'J'}</span>
+                                  {app.job_title}
+                                </p>
                                 {app.job_url && (
                                   <a href={app.job_url} target="_blank" rel="noopener noreferrer"
                                     onClick={(e) => e.stopPropagation()} title="Open job on portal"

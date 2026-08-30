@@ -24,6 +24,7 @@ def list_jobs(
     min_score: float = Query(None),
     applied: bool = Query(None),
     search: str = Query(None),
+    job_type: str = Query(None),
     db: Session = Depends(get_db)
 ):
     query = db.query(Job).join(Company, Job.company_id == Company.id)
@@ -36,6 +37,8 @@ def list_jobs(
         query = query.filter(Job.is_applied == applied)
     if search:
         query = query.filter(Job.title.ilike(f"%{search}%"))
+    if job_type:
+        query = query.filter(Job.job_type == job_type)
 
     total = query.count()
     jobs = (
@@ -59,6 +62,7 @@ def list_jobs(
             salary_max=j.salary_max,
             description=j.description,
             url=j.url,
+            job_type=j.job_type or "job",
             match_score=j.match_score,
             is_applied=j.is_applied,
             scraped_at=j.scraped_at,

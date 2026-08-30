@@ -1,3 +1,4 @@
+import re
 from typing import List
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -6,6 +7,17 @@ from models.job import Job
 from scrapers.base import ScrapedJob
 from scrapers.internshala import InternshalaScraper
 from scrapers.naukri import NaukriScraper
+
+_JOB_TYPE_WORDS = re.compile(r"\b(internship|intern|trainee|apprentice|co-op|coop)\b", re.IGNORECASE)
+
+
+def detect_job_type(title: str) -> str:
+    """Classifies a posting as an internship or a job from its title."""
+    if not title:
+        return "job"
+    if _JOB_TYPE_WORDS.search(title):
+        return "internship"
+    return "job"
 
 
 def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
@@ -44,6 +56,7 @@ def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
             salary_max=item.salary_max,
             description=item.description,
             url=item.url,
+            job_type=detect_job_type(item.title),
             is_applied=False,
             is_blacklisted=False,
         )
