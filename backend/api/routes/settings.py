@@ -17,6 +17,8 @@ class AppSettings(BaseModel):
     apply_mode: str          # 'real' | 'dry_run'
     auto_apply: bool         # whether the scheduled run also applies
     candidate_name: str
+    job_cleanup_enabled: bool
+    job_retention_days: int
 
 
 @router.get("/app", response_model=AppSettings)
@@ -26,6 +28,8 @@ def app_settings():
         apply_mode=settings.apply_mode,
         auto_apply=settings.auto_apply,
         candidate_name=settings.candidate_name,
+        job_cleanup_enabled=settings.job_cleanup_enabled,
+        job_retention_days=settings.job_retention_days,
     )
 
 

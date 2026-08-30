@@ -4,6 +4,8 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from loguru import logger
 from core.config import settings
 from scheduler.jobs import run_daily_automation_pipeline
+from engine.maintenance import cleanup_stale_jobs
+from core.database import SessionLocal
 
 # Initialize background scheduler with a single execution thread to prevent database locks
 executors = {
@@ -27,13 +29,25 @@ def run_pipeline_sync_wrapper():
     asyncio.run(run_daily_automation_pipeline(apply=settings.auto_apply))
 
 
+def run_weekly_cleanup_wrapper():
+    """Weekly housekeeping: prune stale, never-applied jobs."""
+    logger.info("[Scheduler] Running weekly job cleanup...")
+    db = SessionLocal()
+    try:
+        cleanup_stale_jobs(db)
+    except Exception as e:
+        logger.exception(f"[Scheduler] Weekly cleanup failed: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     """Starts the background scheduler daemon."""
     if scheduler.running:
         return
 
     logger.info(f"[Scheduler] Starting background engine (Interval: every {settings.scheduler_interval_hours} hours)")
-    
+
     # 1. Add recurrent job pipeline
     scheduler.add_job(
         run_pipeline_sync_wrapper,
@@ -41,7 +55,17 @@ def start_scheduler():
         hours=settings.scheduler_interval_hours,
         id='job_automation_pipeline'
     )
-    
+
+    # 2. Weekly job cleanup (Sunday 03:00). Skips itself if disabled.
+    scheduler.add_job(
+        run_weekly_cleanup_wrapper,
+        'cron',
+        day_of_week='sun',
+        hour=3,
+        minute=0,
+        id='weekly_job_cleanup'
+    )
+
     scheduler.start()
     logger.info("[Scheduler] Engine started successfully.")
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics } from '../api/client'
+import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics, runJobCleanup } from '../api/client'
 import { fetchCookieHealth } from '../api/client'
-import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer, Radar, ExternalLink } from 'lucide-react'
+import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer, Radar, ExternalLink, Trash2 } from 'lucide-react'
 
 export default function Settings() {
   const [log, setLog] = useState([])
@@ -39,6 +39,13 @@ export default function Settings() {
     // Long-running: scrapes live portals but saves nothing.
     mutationFn: runScraperDiagnostics,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scraperDiag'] }),
+  })
+
+  const cleanMutation = useMutation({
+    mutationFn: runJobCleanup,
+    onSuccess: () => {
+      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] CLEANUP: removed ${cleanMutation.data?.deleted ?? 'some'} stale jobs`])
+    },
   })
 
   const infoCards = [
@@ -125,8 +132,18 @@ export default function Settings() {
           <button onClick={() => diagMutation.mutate({})} disabled={diagMutation.isPending} className="btn-ghost">
             {diagMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping…</> : <><Radar className="w-4 h-4" /> Run Scraper Test</>}
           </button>
-          {appCfg && <span className="text-[10px] text-ink-faint self-center">Keywords: {appCfg.apply_mode ? 'from .env' : 'from .env'}</span>}
+          <button onClick={() => cleanMutation.mutate()} disabled={cleanMutation.isPending} className="btn-ghost">
+            <Trash2 className="w-4 h-4" /> {cleanMutation.isPending ? 'Cleaning…' : 'Clean Up Old Jobs'}
+          </button>
+          <span className="text-[10px] text-ink-faint self-center">
+            Auto-prunes never-applied jobs older than {appCfg?.job_retention_days ?? 30} days, weekly.
+          </span>
         </div>
+        {cleanMutation.data && (
+          <p className="text-xs text-ink-soft bg-surface2 border border-line rounded-lg p-3">
+            Cleanup ran: scanned {cleanMutation.data.scanned} stale, removed <strong className="text-success">{cleanMutation.data.deleted}</strong>.
+          </p>
+        )}
 
         {diagMutation.data && (
           <div className="bg-surface2 border border-line rounded-xl p-4 space-y-3">

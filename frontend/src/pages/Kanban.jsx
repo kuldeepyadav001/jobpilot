@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import { fetchApplications, updateAppStatus, updateAppNotes } from '../api/client'
-import { Search, X, Save, ExternalLink, Check } from 'lucide-react'
+import { Search, X, Save, ExternalLink, Check, LayoutGrid } from 'lucide-react'
 
-const COLUMNS = [
+const ALL_COLUMNS = [
   { id: 'applied', title: 'Applied', color: 'border-blue-500', accent: 'text-blue-600' },
   { id: 'viewed', title: 'Viewed', color: 'border-yellow-500', accent: 'text-yellow-600' },
   { id: 'responded', title: 'Responded', color: 'border-purple-500', accent: 'text-purple-600' },
@@ -22,11 +22,30 @@ const STATUS_ACCENT = {
   pending: 'border-slate-300', needs_manual_action: 'border-orange-400', failed: 'border-rose-400',
 }
 
+// Default visible columns (you can toggle any off in the 'Columns' menu).
+const DEFAULT_VISIBLE = ['applied', 'viewed', 'responded', 'interview', 'offer', 'rejected', 'needs_manual_action', 'failed']
+
+function loadVisible() {
+  try {
+    const raw = localStorage.getItem('jobpilot-kanban-cols')
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return DEFAULT_VISIBLE
+}
+
 export default function Kanban() {
   const queryClient = useQueryClient()
   const [selectedApp, setSelectedApp] = useState(null)
   const [query, setQuery] = useState('')
   const [notesDraft, setNotesDraft] = useState({})
+  const [visible, setVisible] = useState(loadVisible)
+  const [colMenuOpen, setColMenuOpen] = useState(false)
+
+  useEffect(() => {
+    localStorage.setItem('jobpilot-kanban-cols', JSON.stringify(visible))
+  }, [visible])
+
+  const tidyVisible = useMemo(() => ALL_COLUMNS.filter(c => visible.includes(c.id)), [visible])
 
   const { data: applications = [], isLoading } = useQuery({ queryKey: ['applications'], queryFn: fetchApplications })
 
@@ -57,29 +76,65 @@ export default function Kanban() {
       (a.job_title || '').toLowerCase().includes(q) || (a.company_name || '').toLowerCase().includes(q) || (a.method || '').toLowerCase().includes(q))
   }, [applications, query])
 
+  const toggleCol = (id) => {
+    setVisible(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id])
+  }
+
   if (isLoading) return <p className="text-ink-soft">Loading Kanban pipeline...</p>
+
+  const cols = tidyVisible.length ? tidyVisible : ALL_COLUMNS
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col relative">
       <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-ink shrink-0">Application Pipeline</h2>
-        <div className="relative w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by job, company, method…"
-            className="input w-full pl-9 pr-9" />
-          {query && <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"><X className="w-4 h-4" /></button>}
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold text-ink shrink-0">Application Pipeline</h2>
+          <span className="text-sm text-ink-faint">{filtered.length} apps</span>
         </div>
-        <span className="text-sm text-ink-faint shrink-0">{filtered.length} shown / {applications.length} total</span>
+
+        <div className="flex items-center gap-2">
+          <div className="relative w-60">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter jobs, companies…"
+              className="input w-full pl-9 pr-9" />
+            {query && <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"><X className="w-4 h-4" /></button>}
+          </div>
+
+          {/* Column visibility menu */}
+          <div className="relative">
+            <button onClick={() => setColMenuOpen(o => !o)} className="btn-ghost" title="Toggle columns">
+              <LayoutGrid className="w-4 h-4" /> Columns
+            </button>
+            {colMenuOpen && (
+              <div className="absolute right-0 mt-2 z-20 card p-3 w-56 shadow-xl">
+                <p className="label mb-2">Show / hide columns</p>
+                <div className="space-y-1">
+                  {ALL_COLUMNS.map(c => (
+                    <label key={c.id} className="flex items-center gap-2.5 text-xs font-semibold text-ink cursor-pointer hover:bg-surface2 rounded-md px-2 py-1.5">
+                      <input type="checkbox" checked={visible.includes(c.id)} onChange={() => toggleCol(c.id)}
+                        className="accent-[var(--brand)]" />
+                      <span className={`w-2.5 h-2.5 rounded-full border ${c.color}`} />
+                      {c.title}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-9 gap-3 flex-1 overflow-x-auto min-w-[1400px]">
-          {COLUMNS.map((col) => {
+        <div className="flex gap-3 flex-1 overflow-x-auto pb-2">
+          {cols.map((col) => {
             const colApps = filtered.filter((a) => a.status === col.id)
             return (
-              <div key={col.id} className="bg-surface2 border border-line rounded-xl flex flex-col h-full">
+              <div key={col.id} className="shrink-0 w-[240px] bg-surface2 border border-line rounded-xl flex flex-col h-full">
                 <div className={`px-3 py-2 border-b border-line border-t-2 rounded-t-xl ${col.color} flex justify-between items-center`}>
-                  <span className="font-semibold text-sm text-ink">{col.title}</span>
+                  <span className="font-semibold text-sm text-ink flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full border ${col.color}`} />
+                    {col.title}
+                  </span>
                   <span className="text-xs bg-surface text-ink-soft px-2 py-0.5 rounded-full">{colApps.length}</span>
                 </div>
                 <Droppable droppableId={col.id}>
@@ -89,21 +144,20 @@ export default function Kanban() {
                       {colApps.map((app, index) => (
                         <Draggable key={app.id} draggableId={String(app.id)} index={index}>
                           {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-                                onClick={() => { setSelectedApp(app); setNotesDraft({ [app.id]: app.notes || '' }) }}
-                                className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer group ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
-                                <div className="flex items-start justify-between gap-1 mb-1">
-                                  <p className="font-bold text-ink line-clamp-1">{app.job_title}</p>
-                                  {app.job_url && (
-                                    <a href={app.job_url} target="_blank" rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      title="Open job on portal"
-                                      className="p-1 -m-1 rounded text-ink-faint hover:text-brand hover:bg-brand-soft transition shrink-0">
-                                      <ExternalLink className="w-3.5 h-3.5" />
-                                    </a>
-                                  )}
-                                </div>
-                                <p className="text-ink-soft mb-2">{app.company_name}</p>
+                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+                              onClick={() => { setSelectedApp(app); setNotesDraft({ [app.id]: app.notes || '' }) }}
+                              className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer group ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
+                              <div className="flex items-start justify-between gap-1 mb-1">
+                                <p className="font-bold text-ink line-clamp-1">{app.job_title}</p>
+                                {app.job_url && (
+                                  <a href={app.job_url} target="_blank" rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()} title="Open job on portal"
+                                    className="p-1 -m-1 rounded text-ink-faint hover:text-brand hover:bg-brand-soft transition shrink-0">
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                              <p className="text-ink-soft mb-2">{app.company_name}</p>
                               <div className="flex justify-between items-center text-[10px] text-ink-faint pt-1 border-t border-line">
                                 <span className="uppercase">{app.method}</span>
                                 <span>{new Date(app.applied_at).toLocaleDateString()}</span>
@@ -170,7 +224,7 @@ export default function Kanban() {
                   <select value={selectedApp.status}
                     onChange={(e) => statusMutation.mutate({ id: selectedApp.id, status: e.target.value })}
                     className="input mt-0.5 w-full text-xs">
-                    {COLUMNS.map(col => <option key={col.id} value={col.id}>{col.title}</option>)}
+                    {ALL_COLUMNS.map(col => <option key={col.id} value={col.id}>{col.title}</option>)}
                   </select>
                 </div>
               </div>
@@ -186,12 +240,9 @@ export default function Kanban() {
                 <p className="label uppercase tracking-wide">Notes</p>
                 <textarea value={notesDraft[selectedApp.id] ?? selectedApp.notes ?? ''}
                   onChange={(e) => setNotesDraft(prev => ({ ...prev, [selectedApp.id]: e.target.value }))}
-                  rows={3} placeholder="Add notes about this application…"
-                  className="input w-full" />
+                  rows={3} placeholder="Add notes about this application…" className="input w-full" />
                 <button onClick={() => notesMutation.mutate({ id: selectedApp.id, notes: notesDraft[selectedApp.id] ?? '' })}
-                  className="btn-primary text-xs">
-                  <Save className="w-3.5 h-3.5" /> Save Notes
-                </button>
+                  className="btn-primary text-xs"><Save className="w-3.5 h-3.5" /> Save Notes</button>
               </div>
             </div>
 

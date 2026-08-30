@@ -22,7 +22,10 @@
 - ⏳ **Full UI restyle (0–100, responsive, real)**: ✅ DONE — design-token system (light EdTech + dark), cinematic Perplexity-style Landing (`/`), working light/dark toggle, retokened all 8 pages. ⏳ Verify on browser + Docker.
 - ✅ Apply top-N select now `select_apply_targets()` + `APPLY_TARGET_COUNT`; `MATCH_SCORE_THRESHOLD=0` default (silently-fixed the "threshold 20 blocks all applies" bug).
 - ✅ Monitoring page wired to `/api/system/health` + `/metrics`; Prometheus + Grafana in compose.
-- ⏳ Next: scraper live-validation + score calibration ("increase the percentage") — see Wave notes.
+- ✅ **Job auto-cleanup** added: weekly cron (Sun 03:00) prunes never-applied jobs older than `JOB_RETENTION_DAYS` (default 30), keeping applied + application-referenced jobs. Route `DELETE /api/jobs/cleanup` + Settings "Clean Up Old Jobs" button.
+- ✅ **Keyword strategy** for the 6 resumes (python/backend/full-stack/java/frontend+react/AI-ML/devops-cloud) set as default `SEARCH_KEYWORDS`.
+- ✅ **Pipeline UI**: removable/hideable columns (persisted via localStorage), column-color dots, per-column counts, filter.
+- ⏳ Next: scraper live-validation (run the "Run Scraper Test" in Settings and send results) + score calibration ("increase the percentage").
 
 ## Wave 3 — Security
 - **W3.1 (H1)** Add auth (API token / login) at minimum on `/pipeline`, `/applications`, `/resumes`, `/settings`. Use `SECRET_KEY` (currently dead).

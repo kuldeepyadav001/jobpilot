@@ -39,13 +39,24 @@ class Settings(BaseSettings):
     # the score scale is uncalibrated). A too-high value quietly blocks all applies.
     match_score_threshold: int = 0
     scheduler_interval_hours: int = 6
-    search_keywords: str = "python developer, react developer"
+    # Broad keywords: cast a wide net across the user's resume roles.
+    search_keywords: str = (
+        "python developer, backend developer, full stack developer, java developer, "
+        "frontend developer, react developer, machine learning, ai engineer, "
+        "devops engineer, cloud engineer"
+    )
     # How many highest-scoring jobs to target per apply cycle.
     apply_target_count: int = 10
     # Where to scrape (used by the pipeline; overrides the old hardcoded "remote").
     search_location: str = "remote"
     # How many cards to pull per portal per keyword in one scrape cycle.
     max_per_portal: int = 5
+
+    # JOB CLEANUP: prune stale, never-applied jobs automatically so the DB doesn't
+    # fill up. Jobs older than job_retention_days that were never applied (and not
+    # referenced by any application) are removed each week.
+    job_cleanup_enabled: bool = True
+    job_retention_days: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore", env_prefix="")
 

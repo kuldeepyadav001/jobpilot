@@ -4,8 +4,16 @@ from core.database import get_db
 from models.job import Job
 from models.company import Company
 from api.schemas import JobOut, JobListResponse
+from engine.maintenance import cleanup_stale_jobs
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+
+
+@router.delete("/cleanup")
+def run_cleanup(db: Session = Depends(get_db)):
+    """Manually triggers the stale-job cleanup (also runs weekly on schedule)."""
+    result = cleanup_stale_jobs(db, now=None)
+    return {"status": "ok", **result}
 
 
 @router.get("", response_model=JobListResponse)
