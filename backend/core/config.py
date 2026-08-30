@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # How many cards to pull per portal per keyword in one scrape cycle.
     max_per_portal: int = 5
 
+    # "GOOD PAY" preference: skip jobs whose known salary_min is below this (yearly).
+    # 0 = off (accept any known salary). Jobs with UNKNOWN salary are kept (can't judge)
+    # but outranked by known-paid jobs so the best offers surface first.
+    min_salary: int = 0
+
     # JOB CLEANUP: prune stale, never-applied jobs automatically so the DB doesn't
     # fill up. Jobs older than job_retention_days that were never applied (and not
     # referenced by any application) are removed each week.

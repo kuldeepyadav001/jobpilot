@@ -15,12 +15,17 @@ from models.company import Company
 from models.analytics import AnalyticsSnapshot
 from engine.application_service import can_apply_today
 
-def select_apply_targets(db: Session, threshold: int, target_count: int) -> list[Job]:
+def select_apply_targets(db: Session, threshold: int, target_count: int, min_salary: int = 0) -> list[Job]:
     """Returns the top-N non-applied, non-blacklisted, scored jobs for applying.
 
     Selection is TOP-N by match score (robust while the score scale is
     uncalibrated). `threshold` acts as an optional soft floor: if > 0, jobs scoring
     below it are excluded; if 0, the floor is disabled.
+
+    PAY PREFERENCE (min_salary > 0):
+      - Jobs with a KNOWN salary_min below min_salary are excluded.
+      - Jobs with UNKNOWN salary are kept (can't judge pay), but are ranked after
+        jobs with a known salary so the better offers surface first.
     """
     q = (
         db.query(Job)
@@ -31,12 +36,19 @@ def select_apply_targets(db: Session, threshold: int, target_count: int) -> list
     if threshold > 0:
         q = q.filter(Job.match_score >= threshold)
 
-    return (
-        q
-        .order_by(Job.match_score.desc())
-        .limit(max(1, target_count))
-        .all()
-    )
+    jobs = list(q.all())
+
+    if min_salary > 0:
+        known_low = [j for j in jobs if j.salary_min is not None and j.salary_min < min_salary]
+        # Exclude only jobs we KNOW pay below the preferred amount.
+        jobs = [j for j in jobs if not (j.salary_min is not None and j.salary_min < min_salary)]
+        # Sort: known-salary (highest first) then unknown-salary, then by score.
+        jobs.sort(key=lambda j: (j.salary_min is not None, j.salary_min or 0, j.match_score or 0), reverse=True)
+        logger.info(f"[Pipeline] Pay preference: excluded {len(known_low)} jobs below MIN_SALARY={min_salary}.")
+    else:
+        jobs.sort(key=lambda j: j.match_score or 0, reverse=True)
+
+    return jobs[: max(1, target_count)]
 
 
 async def _run_apply_step(db: Session):
@@ -47,9 +59,12 @@ async def _run_apply_step(db: Session):
         logger.warning("[Pipeline] Apply step skipped: No active resume found.")
         return
 
-    qualified_jobs = select_apply_targets(db, settings.match_score_threshold, settings.apply_target_count)
+    qualified_jobs = select_apply_targets(
+        db, settings.match_score_threshold, settings.apply_target_count, settings.min_salary,
+    )
     logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs with {len(active_resumes)} active resume(s) "
-                f"(target={settings.apply_target_count}, floor={settings.match_score_threshold}).")
+                f"(target={settings.apply_target_count}, floor={settings.match_score_threshold}, "
+                f"min_salary={settings.min_salary}).")
     for job in qualified_jobs:
         if not can_apply_today(db, job.portal):
             logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
