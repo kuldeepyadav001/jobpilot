@@ -89,13 +89,13 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     return total_stats
 
 
-async def scrape_keyword(keyword: str, location: str, max_per_portal: int) -> List[ScrapedJob]:
+async def scrape_keyword(keyword: str, location: str, max_per_portal: int, enrich: bool = True) -> List[ScrapedJob]:
     """Scrapes one keyword across all portals and returns the combined raw list (no DB save)."""
     internshala = InternshalaScraper()
     naukri = NaukriScraper()
 
-    ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal)
-    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal)
+    ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
+    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
     return ishala_jobs + naukri_jobs
 
 
@@ -111,7 +111,7 @@ async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal:
         entry = {"keyword": kw_clean, "total": 0, "by_portal": {}, "sample": [], "errors": []}
         for portal_name, scraper in (("internshala", InternshalaScraper()), ("naukri", NaukriScraper())):
             try:
-                jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal)
+                jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal, enrich=False)
                 entry["total"] += len(jobs)
                 entry["by_portal"][portal_name] = len(jobs)
                 for j in jobs[:3]:

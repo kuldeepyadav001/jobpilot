@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics, runJobCleanup } from '../api/client'
+import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics, fetchScraperDiagnosticsStatus, runJobCleanup } from '../api/client'
 import { fetchCookieHealth } from '../api/client'
 import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer, Radar, ExternalLink, Trash2 } from 'lucide-react'
 
@@ -35,10 +35,17 @@ export default function Settings() {
 
   const { data: cookies = [] } = useQuery({ queryKey: ['cookieHealth'], queryFn: fetchCookieHealth, refetchInterval: 60000 })
 
+  // Scraper dry-run runs in the BACKGROUND (it can take minutes), so we start it
+  // with a POST and poll /status every 2s until it finishes.
   const diagMutation = useMutation({
-    // Long-running: scrapes live portals but saves nothing.
     mutationFn: runScraperDiagnostics,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scraperDiag'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scraperDiagStatus'] }),
+    onError: () => queryClient.invalidateQueries({ queryKey: ['scraperDiagStatus'] }),
+  })
+  const { data: diagStatus = { running: false, status: 'idle', results: [] } } = useQuery({
+    queryKey: ['scraperDiagStatus'],
+    queryFn: fetchScraperDiagnosticsStatus,
+    refetchInterval: (q) => (q.state.data?.running ? 2000 : false),
   })
 
   const cleanMutation = useMutation({
@@ -129,8 +136,8 @@ export default function Settings() {
           Modify keywords/location via <code className="text-ink">SEARCH_KEYWORDS</code>, <code className="text-ink">SEARCH_LOCATION</code> in .env.
         </p>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => diagMutation.mutate({})} disabled={diagMutation.isPending} className="btn-ghost">
-            {diagMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping…</> : <><Radar className="w-4 h-4" /> Run Scraper Test</>}
+          <button onClick={() => diagMutation.mutate({})} disabled={diagMutation.isPending || diagStatus.running} className="btn-ghost">
+            {diagStatus.running ? <><Loader2 className="w-4 h-4 animate-spin" /> Scraping…</> : diagMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</> : <><Radar className="w-4 h-4" /> Run Scraper Test</>}
           </button>
           <button onClick={() => cleanMutation.mutate()} disabled={cleanMutation.isPending} className="btn-ghost">
             <Trash2 className="w-4 h-4" /> {cleanMutation.isPending ? 'Cleaning…' : 'Clean Up Old Jobs'}
@@ -145,9 +152,15 @@ export default function Settings() {
           </p>
         )}
 
-        {diagMutation.data && (
+        {diagStatus.running && (
+          <p className="text-xs text-brand animate-pulse">
+            <Loader2 className="w-3.5 h-3.5 inline animate-spin" /> Dry-run scraper running in the background (this can take a minute or two)…
+          </p>
+        )}
+        {diagStatus.status === 'error' && <p className="text-xs text-danger">{diagStatus.message}</p>}
+        {diagStatus.results && diagStatus.results.length > 0 && (
           <div className="bg-surface2 border border-line rounded-xl p-4 space-y-3">
-            {diagMutation.data.results.map((r, i) => (
+            {diagStatus.results.map((r, i) => (
               <div key={i}>
                 <div className="flex items-center gap-3 mb-1.5">
                   <span className="font-bold text-sm text-ink">{r.keyword}</span>

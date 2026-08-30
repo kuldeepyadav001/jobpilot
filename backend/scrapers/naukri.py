@@ -21,7 +21,8 @@ class NaukriScraper(BaseScraper):
             return int(nums[0] * multiplier), int(nums[1] * multiplier)
         return None, None
 
-    async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20) -> List[ScrapedJob]:
+    async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20,
+                     enrich: bool = True) -> List[ScrapedJob]:
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("NAUKRI_COOKIE", "")
         page = await self.init_browser(cookie_string=cookie_string, domain=".naukri.com")
@@ -84,8 +85,11 @@ class NaukriScraper(BaseScraper):
             logger.info(f"[Naukri] Scraped {len(jobs)} jobs from listing page")
 
             # --- ENRICH: Fetch full JD for each job ---
-            logger.info(f"[Naukri] Enriching {len(jobs)} jobs with full descriptions...")
+            if enrich:
+                logger.info(f"[Naukri] Enriching {len(jobs)} jobs with full descriptions...")
             for job in jobs:
+                if not enrich:
+                    break  # Lightweight mode (diagnostics): listing-card data is enough
                 try:
                     await asyncio.sleep(2)
                     await page.goto(job.url, wait_until="domcontentloaded", timeout=30000)
