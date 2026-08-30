@@ -40,6 +40,7 @@ class ApplicationOut(BaseModel):
     method: str
     status: str
     cover_letter: Optional[str]
+    notes: Optional[str] = None
 
     class Config:
         from_attributes = True

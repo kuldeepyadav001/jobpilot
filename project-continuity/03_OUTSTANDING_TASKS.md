@@ -11,8 +11,15 @@
 
 ## Wave 2 — Real single-command deployment  ✅ MOSTLY DONE
 - **W2.1 (C1)** ✅ Frontend baked into nginx image (`docker/frontend.Dockerfile`), served + `/api` proxied. ⏳ Verify `docker compose up` on a machine with Docker.
-- **W2.2 (H4)** ⏳ Still open — prometheus + grafana containers not added.
+- **W2.2 (H4)** ✅ DONE — `prometheus` + `grafana` services added to compose, Grafana provisioned with a JobPilot dashboard, `/metrics` exposed via nginx, and a **frontend Monitoring page** (/monitoring) reads `/api/system/health` + `/metrics`. ⏳ Verify on a machine with Docker.
 - **W2.3 (M5)** ✅ Removed `--reload` + source mount; image auto-runs `alembic upgrade head`.
+
+## Wave 2.5 — UI/functionality (added per user request)
+- ✅ Dashboard: "Trigger Pipeline" button now calls `/api/pipeline/run` with live state; KPI stat cards are clickable (navigate to Feed/Kanban/Responses/Analytics).
+- ✅ Kanban: search/filter bar, per-status color coding, editable notes (new `PATCH /applications/{id}/notes`), richer detail modal.
+- ✅ New **Monitoring** page (/monitoring): live health cards (DB/Ollama/scheduler/pipeline), cookie status, Prometheus metrics viewer, Grafana link.
+- ✅ Apply-selection switched to **top-N by score** (`select_apply_targets`, `APPLY_TARGET_COUNT`) with `MATCH_SCORE_THRESHOLD` as an optional soft floor (default 0 = off) — fixes the "threshold 20 blocks every apply" bug.
+- ⏳ **Full UI restyle (0–100, responsive, real)**: pending the user's UI reference — see comment in `docs/WAVE2_UI_FEATURES_REPORT.md`.
 
 ## Wave 3 — Security
 - **W3.1 (H1)** Add auth (API token / login) at minimum on `/pipeline`, `/applications`, `/resumes`, `/settings`. Use `SECRET_KEY` (currently dead).

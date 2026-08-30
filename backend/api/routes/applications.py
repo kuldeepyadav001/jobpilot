@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 from core.database import get_db
 from models.application import Application
 from models.job import Job
@@ -35,8 +36,38 @@ def list_applications(db: Session = Depends(get_db)):
             method=a.method,
             status=a.status,
             cover_letter=a.cover_letter,
+            notes=a.notes,
         ))
     return result
+
+
+class NotesUpdateRequest(BaseModel):
+    notes: str
+
+
+@router.patch("/{app_id}/notes", response_model=ApplicationOut)
+def update_notes(app_id: int, req: NotesUpdateRequest, db: Session = Depends(get_db)):
+    app = db.query(Application).filter(Application.id == app_id).first()
+    if not app:
+        raise HTTPException(404, "Application not found")
+    app.notes = req.notes
+    db.commit()
+    db.refresh(app)
+
+    job = db.query(Job).filter(Job.id == app.job_id).first()
+    comp = db.query(Company).filter(Company.id == job.company_id).first() if job else None
+    return ApplicationOut(
+        id=app.id,
+        job_id=app.job_id,
+        job_title=job.title if job else "Unknown",
+        company_name=comp.name if comp else "Unknown",
+        resume_id=app.resume_id,
+        applied_at=app.applied_at,
+        method=app.method,
+        status=app.status,
+        cover_letter=app.cover_letter,
+        notes=app.notes,
+    )
 
 
 @router.patch("/{app_id}/status", response_model=ApplicationOut)
@@ -67,4 +98,5 @@ def update_status(app_id: int, req: StatusUpdateRequest, db: Session = Depends(g
         method=app.method,
         status=app.status,
         cover_letter=app.cover_letter,
+        notes=app.notes,
     )

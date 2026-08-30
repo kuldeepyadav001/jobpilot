@@ -1,8 +1,12 @@
 import sys
-from fastapi import FastAPI, Response, Depends
+import time as _t
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from loguru import logger
+
+_STARTED_AT = _t.time()
 
 from core.database import get_db
 from models.job import Job
@@ -16,6 +20,7 @@ from api.routes import (
     analytics,
     pipeline,
     responses,
+    system,
     settings as settings_route,
 )
 from scheduler.scheduler import start_scheduler, shutdown_scheduler
@@ -51,6 +56,7 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(responses.router, prefix="/api")
 app.include_router(settings_route.router, prefix="/api")
+app.include_router(system.router, prefix="/api")
 
 
 # 5. Lifecycle Event Handlers
@@ -74,26 +80,42 @@ def health_check():
 
 @app.get("/metrics")
 def metrics(db: Session = Depends(get_db)):
-    """Prometheus exposition format metrics."""
+    """Prometheus exposition format metrics — scraped by the prometheus service."""
+    import time as _t
+    from models.response import Response
+    from models.resume import Resume
+
     total_jobs = db.query(Job).count()
     total_apps = db.query(Application).count()
     interviews = db.query(Application).filter(Application.status == "interview").count()
     rejected = db.query(Application).filter(Application.status == "rejected").count()
+    offers = db.query(Application).filter(Application.status == "offer").count()
+    responses = db.query(Response).count()
+    resumes = db.query(Resume).count()
+    # Status funnel
+    status_counts = {}
+    for status, cnt in db.query(Application.status, func.count(Application.id)).group_by(Application.status).all():
+        status_counts[status or "none"] = cnt
 
-    lines = [
-        "# HELP jobpilot_jobs_total Total scraped jobs",
-        "# TYPE jobpilot_jobs_total gauge",
-        f"jobpilot_jobs_total {total_jobs}",
-        "# HELP jobpilot_applications_total Total applications",
-        "# TYPE jobpilot_applications_total gauge",
-        f"jobpilot_applications_total {total_apps}",
-        "# HELP jobpilot_interviews_total Interview invitations",
-        "# TYPE jobpilot_interviews_total gauge",
-        f"jobpilot_interviews_total {interviews}",
-        "# HELP jobpilot_rejected_total Rejected applications",
-        "# TYPE jobpilot_rejected_total gauge",
-        f"jobpilot_rejected_total {rejected}",
-    ]
+    def _g(name, value, help_):
+        return [
+            f"# HELP {name} {help_}",
+            f"# TYPE {name} gauge",
+            f"{name} {value}",
+        ]
+
+    lines = []
+    lines += _g("jobpilot_jobs_total", total_jobs, "Total scraped jobs")
+    lines += _g("jobpilot_applications_total", total_apps, "Total applications")
+    lines += _g("jobpilot_interviews_total", interviews, "Interview invitations")
+    lines += _g("jobpilot_offers_total", offers, "Offers received")
+    lines += _g("jobpilot_rejected_total", rejected, "Rejected applications")
+    lines += _g("jobpilot_responses_total", responses, "Recruiter responses detected")
+    lines += _g("jobpilot_resumes_total", resumes, "Resumes uploaded")
+    lines += _g("jobpilot_uptime_seconds", int(_t.time() - _STARTED_AT), "Process uptime in seconds")
+    for status, cnt in status_counts.items():
+        lines += _g(f"jobpilot_applications_status_{{status=\"{status}\"}}", cnt, f"Applications in status '{status}'")
+
     return Response("\n".join(lines), media_type="text/plain")
 
 

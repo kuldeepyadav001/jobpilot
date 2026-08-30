@@ -34,11 +34,16 @@ class Settings(BaseSettings):
     auto_apply: bool = False
 
     # Scraping
-    match_score_threshold: int = 65
+    # match_score_threshold is now a soft FLOOR: jobs scoring below this are skipped.
+    # Leave at 0 to disable the floor and apply to the top-N instead (recommended while
+    # the score scale is uncalibrated). A too-high value quietly blocks all applies.
+    match_score_threshold: int = 0
     scheduler_interval_hours: int = 6
     search_keywords: str = "python developer, react developer"
+    # How many highest-scoring jobs to target per apply cycle.
+    apply_target_count: int = 10
 
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore", env_prefix="")
 
 
 settings = Settings()

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { LayoutDashboard, Briefcase, Kanban as KanbanIcon, FileText, Mail, BarChart2, Settings as SettingsIcon, Search, Bell, User } from 'lucide-react'
+import { LayoutDashboard, Briefcase, Kanban as KanbanIcon, FileText, Mail, BarChart2, Settings as SettingsIcon, Search, Bell, User, HeartPulse } from 'lucide-react'
 
 import Dashboard from './pages/Dashboard'
 import Feed from './pages/Feed'
@@ -9,6 +9,7 @@ import Resumes from './pages/Resumes'
 import Responses from './pages/Responses'
 import Analytics from './pages/Analytics'
 import Settings from './pages/Settings'
+import Monitoring from './pages/Monitoring'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: false } }
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { to: '/resumes', icon: FileText, label: 'Resumes' },
   { to: '/responses', icon: Mail, label: 'Responses' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
+  { to: '/monitoring', icon: HeartPulse, label: 'Monitoring' },
   { to: '/settings', icon: SettingsIcon, label: 'Settings' },
 ]
 
@@ -108,6 +110,7 @@ export default function App() {
             <Route path="/resumes" element={<Resumes />} />
             <Route path="/responses" element={<Responses />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/monitoring" element={<Monitoring />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Layout>

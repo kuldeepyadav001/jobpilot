@@ -15,6 +15,30 @@ from models.company import Company
 from models.analytics import AnalyticsSnapshot
 from engine.application_service import can_apply_today
 
+def select_apply_targets(db: Session, threshold: int, target_count: int) -> list[Job]:
+    """Returns the top-N non-applied, non-blacklisted, scored jobs for applying.
+
+    Selection is TOP-N by match score (robust while the score scale is
+    uncalibrated). `threshold` acts as an optional soft floor: if > 0, jobs scoring
+    below it are excluded; if 0, the floor is disabled.
+    """
+    q = (
+        db.query(Job)
+        .filter(Job.is_applied == False)
+        .filter(Job.is_blacklisted == False)
+        .filter(Job.match_score.isnot(None))
+    )
+    if threshold > 0:
+        q = q.filter(Job.match_score >= threshold)
+
+    return (
+        q
+        .order_by(Job.match_score.desc())
+        .limit(max(1, target_count))
+        .all()
+    )
+
+
 async def _run_apply_step(db: Session):
     """Selects qualified, non-applied, non-blacklisted jobs and applies to each
     using the best-matching resume. Respects the daily per-portal rate cap."""
@@ -23,17 +47,9 @@ async def _run_apply_step(db: Session):
         logger.warning("[Pipeline] Apply step skipped: No active resume found.")
         return
 
-    qualified_jobs = (
-        db.query(Job)
-        .filter(Job.is_applied == False)
-        .filter(Job.is_blacklisted == False)
-        .filter(Job.match_score >= settings.match_score_threshold)
-        .order_by(Job.match_score.desc())
-        .limit(10)
-        .all()
-    )
-
-    logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs with {len(active_resumes)} active resume(s).")
+    qualified_jobs = select_apply_targets(db, settings.match_score_threshold, settings.apply_target_count)
+    logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs with {len(active_resumes)} active resume(s) "
+                f"(target={settings.apply_target_count}, floor={settings.match_score_threshold}).")
     for job in qualified_jobs:
         if not can_apply_today(db, job.portal):
             logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
