@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchResponses, triggerEmailScan } from '../api/client'
-import { RefreshCw, Mail } from 'lucide-react'
+import { RefreshCw, Mail, ExternalLink } from 'lucide-react'
 
 const TYPE_STYLES = {
   interview: 'bg-success text-white',
@@ -49,7 +49,15 @@ export default function Responses() {
                     <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${TYPE_STYLES[r.response_type] || 'bg-surface3 text-ink-soft'}`}>{r.response_type}</span>
                     {!r.is_read && <span className="text-[10px] bg-brand text-white px-1.5 py-0.5 rounded">NEW</span>}
                   </div>
-                  <h3 className="font-semibold text-sm text-ink">{r.job_title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-sm text-ink">{r.job_title}</h3>
+                    {r.job_url && (
+                      <a href={r.job_url} target="_blank" rel="noopener noreferrer" title="Open job on portal"
+                        className="p-1 -m-1 text-ink-faint hover:text-brand hover:bg-brand-soft rounded transition">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
                   <p className="text-ink-soft text-xs">{r.company_name}</p>
                 </div>
                 <span className="text-xs text-ink-faint">{r.received_at ? new Date(r.received_at).toLocaleString() : 'N/A'}</span>

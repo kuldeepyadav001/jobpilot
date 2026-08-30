@@ -21,6 +21,7 @@ class ResponseOut(BaseModel):
     received_at: Optional[datetime]
     parsed_summary: Optional[str]
     is_read: bool
+    job_url: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -43,6 +44,7 @@ def list_responses(db: Session = Depends(get_db)):
             received_at=r.received_at,
             parsed_summary=r.parsed_summary,
             is_read=r.is_read,
+            job_url=job.url if job else None,
         ))
     return result
 

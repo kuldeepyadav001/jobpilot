@@ -89,11 +89,21 @@ export default function Kanban() {
                       {colApps.map((app, index) => (
                         <Draggable key={app.id} draggableId={String(app.id)} index={index}>
                           {(provided, snapshot) => (
-                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
-                              onClick={() => { setSelectedApp(app); setNotesDraft({ [app.id]: app.notes || '' }) }}
-                              className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
-                              <p className="font-bold text-ink mb-1 line-clamp-1">{app.job_title}</p>
-                              <p className="text-ink-soft mb-2">{app.company_name}</p>
+                              <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}
+                                onClick={() => { setSelectedApp(app); setNotesDraft({ [app.id]: app.notes || '' }) }}
+                                className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer group ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
+                                <div className="flex items-start justify-between gap-1 mb-1">
+                                  <p className="font-bold text-ink line-clamp-1">{app.job_title}</p>
+                                  {app.job_url && (
+                                    <a href={app.job_url} target="_blank" rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="Open job on portal"
+                                      className="p-1 -m-1 rounded text-ink-faint hover:text-brand hover:bg-brand-soft transition shrink-0">
+                                      <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                  )}
+                                </div>
+                                <p className="text-ink-soft mb-2">{app.company_name}</p>
                               <div className="flex justify-between items-center text-[10px] text-ink-faint pt-1 border-t border-line">
                                 <span className="uppercase">{app.method}</span>
                                 <span>{new Date(app.applied_at).toLocaleDateString()}</span>
