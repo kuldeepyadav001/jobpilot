@@ -40,3 +40,31 @@ async def test_confirmed_applied_returns_false_when_no_signal():
     fake = _FakeConfirmed(confirmed=False)
     result = await eng._confirmed_applied_page_probe(fake)
     assert result is False
+
+
+class _NaukriProbe:
+    """Stub that matches Naukri success text selectors."""
+    def __init__(self, applied: bool):
+        self.applied = applied
+        self.skip_buttons = 0
+
+    async def query_selector(self, selector):
+        # Never match a raw <button>: those are ignored to avoid false 'Apply' label hits.
+        if selector.startswith("button"):
+            return None
+        if selector.startswith("text=") and self.applied:
+            return object()  # non-gtNone ~ success found
+        return None
+
+
+@pytest.mark.asyncio
+async def test_naukri_confirmed_detects_text_success():
+    eng = PlaywrightApplyEngine(headless=True)
+    assert await eng._is_naukri_applied_confirmed(_NaukriProbe(applied=True)) is True
+
+
+@pytest.mark.asyncio
+async def test_naukri_confirmed_ignores_button_labels():
+    eng = PlaywrightApplyEngine(headless=True)
+    # Button selectors are skipped (avoid false positive on a passive 'Apply' button).
+    assert await eng._is_naukri_applied_confirmed(_NaukriProbe(applied=True)) is True

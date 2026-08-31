@@ -148,6 +148,10 @@ async def execute_job_application(
             from engine.apply import PlaywrightApplyEngine
             engine = PlaywrightApplyEngine(headless=True)
             final_status = await engine.apply_to_internshala(job.url, cover_letter)
+        elif job.portal == "naukri":
+            from engine.apply import PlaywrightApplyEngine
+            engine = PlaywrightApplyEngine(headless=True)
+            final_status = await engine.apply_to_naukri(job.url, cover_letter)
         else:
             logger.warning(f"[Apply Service] Portal '{job.portal}' automation not yet supported.")
             final_status = "needs_manual_action"

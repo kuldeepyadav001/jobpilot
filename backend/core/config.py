@@ -47,6 +47,15 @@ class Settings(BaseSettings):
         "frontend developer, react developer, machine learning, ai engineer, "
         "devops engineer, cloud engineer"
     )
+    # Tighter, Naukri-optimized keywords. Naukri fuzzy-matches poorly on long/generic
+    # terms (e.g. it returned 0 for 'devops engineer', and sales jobs for 'cloud
+    # engineer'). Short, precise role terms work far better. Leave empty to fall
+    # back to SEARCH_KEYWORDS.
+    naukri_keywords: str = (
+        "python developer, backend developer, full stack developer, java developer, "
+        "react developer, frontend developer, machine learning, data science, "
+        "devops engineer, aws cloud engineer"
+    )
     # How many highest-scoring jobs to target per apply cycle. Raise this to
     # MAXIMISE applications (a student can't afford to be choosy). Capped each day
     # by daily_apply_cap per portal.

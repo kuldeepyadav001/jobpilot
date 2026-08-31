@@ -243,3 +243,106 @@ class PlaywrightApplyEngine(BaseBrowser):
             return "needs_manual_action"
         finally:
             await self.close()
+
+    async def _is_naukri_applied_confirmed(self, page) -> bool:
+        """True if the page shows a Naukri 'Applied' confirmation."""
+        selectors = [
+            "text=Applied successfully",
+            "text=You have applied",
+            "text=Application submitted",
+            "text=Not accepted",
+            "text=Applied",
+            ".applied-success",
+            ".status-msg",
+            "button:has-text('Applied')",
+            "button:has-text('Withdraw')",
+        ]
+        for sel in selectors:
+            try:
+                el = await page.query_selector(sel)
+                if el:
+                    # Avoid false positive on passive 'Apply' button labels.
+                    if sel.startswith("button"):
+                        continue
+                    return True
+            except Exception:
+                continue
+        return False
+
+    async def apply_to_naukri(self, job_url: str, cover_letter: str) -> str:
+        """Best-effort Naukri auto-apply with honest verification.
+
+        Returns 'applied' ONLY when Naukri confirms the submission; 'needs_manual_action'
+        when the job requires profile completion, login, an external site redirect, or
+        a step we can't verify. Naukri is heavily gated (profile-complete requirement and
+        reCAPTCHA), so many jobs will legitimately route to manual rather than be falsely
+        marked applied.
+        """
+        cookie_string = os.getenv("NAUKRI_COOKIE", "")
+        page = await self.init_browser(cookie_string=cookie_string, domain=".naukri.com")
+        try:
+            logger.info(f"[Naukri Apply] Opening: {job_url}")
+            await page.goto(job_url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(2500)
+
+            # Already applied?
+            if await self._is_naukri_applied_confirmed(page):
+                logger.info("[Naukri Apply] Already applied / confirmed applied.")
+                return "applied"
+
+            if not await self._is_logged_in(page):
+                logger.warning("[Naukri Apply] NOT logged in. Refresh NAUKRI_COOKIE.")
+                return "needs_manual_action"
+
+            # External redirect (company careers site / LinkedIn) => never auto-apply.
+            external = await page.query_selector(
+                "a[href*='careers.'], a[href*='career.'], a[href*='company'], a[href*='linkedin.com/jobs'], a:has-text('Company Website')"
+            )
+            if external:
+                logger.warning("[Naukri Apply] External site apply — routing to manual (can't automate).")
+                return "needs_manual_action"
+
+            # Find Naukri's Apply button (multiple known classes/texts).
+            apply_btn = (
+                await page.query_selector("button:has-text('Apply')")
+                or await page.query_selector("#app_buttons .apply-button")
+                or await page.query_selector("button.btn-primary:has-text('Apply')")
+                or await page.query_selector("a[href*='application'], a:has-text('Apply')")
+            )
+            if not apply_btn:
+                logger.warning("[Naukri Apply] No apply button found. Flagging for manual.")
+                return "needs_manual_action"
+
+            await apply_btn.click()
+            await page.wait_for_timeout(3500)
+
+            # Naukri sometimes opens an "Easy Apply" modal with a 'Submit'/'Continue'.
+            submit_btn = (
+                await page.query_selector("button:has-text('Send')")
+                or await page.query_selector("button:has-text('Submit Application')")
+                or await page.query_selector("button:has-text('Submit')")
+                or await page.query_selector("button:has-text('Continue')")
+                or await page.query_selector("input[type='submit']")
+            )
+            if not submit_btn:
+                logger.warning("[Naukri Apply] No final submit control found. Flagging for manual.")
+                return "needs_manual_action"
+
+            if settings.apply_mode == "real":
+                await submit_btn.click()
+                await page.wait_for_timeout(4000)
+                if await self._is_naukri_applied_confirmed(page):
+                    logger.info(f"[Naukri Apply] Submission CONFIRMED for {job_url}")
+                    return "applied"
+                logger.warning(f"[Naukri Apply] Clicked submit but could NOT confirm success for {job_url}. "
+                               "Flagging for manual (likely profile-complete gate).")
+                return "needs_manual_action"
+            else:
+                logger.info("[Naukri Apply] DRY_RUN: skipped final submit. Set APPLY_MODE=real to apply for real.")
+                return "needs_manual_action"
+
+        except Exception as e:
+            logger.error(f"[Naukri Apply] Error: {e}")
+            return "needs_manual_action"
+        finally:
+            await self.close()

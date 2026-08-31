@@ -27,24 +27,39 @@ you were logged in. That's why the apply looked fine but nothing was submitted.)
 
 ---
 
-## Naukri (needs the Application tab)
+## Naukri (httpOnly — use the CDP exporter, no hunting)
 
-Naukri keeps its session in **httpOnly** cookies, so `document.cookie` can't read them.
-Use the Application panel instead:
+Naukri keeps its session in **httpOnly** cookies, so `document.cookie` **cannot** read
+them. Don't hunt through the 200+ requests in the Network tab. Use the bundled CDP
+exporter, which reads the browser's *entire* cookie jar automatically:
 
+1. Install the two small deps (once):
+   ```bash
+   python -m pip install requests websocket-client
+   ```
+2. Fully quit Chrome, then relaunch it with remote debugging and log into Naukri:
+   ```
+   "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+   ```
+3. In that Chrome window, go to https://www.naukri.com and log in.
+4. Run the exporter:
+   ```bash
+   python scripts/export_naukri_cookie.py
+   ```
+5. Copy the printed `NAUKRI_COOKIE` value into `.env`, then:
+   ```bash
+   docker compose restart backend
+   ```
+6. Go to Settings → **Test Login** → it should be green.
+
+### Alternative (no script): DevTools → Application tab
 1. Log in at **https://www.naukri.com**.
-2. **F12** → **Application** tab → **Cookies** → `https://www.naukri.com`.
-3. Find the session cookie(s) — typically named `naukri.com` or similar. Copy the
-   **cookie name** and **value** for the main session one.
-4. Assemble into the format `name=value` and set:
-   ```
-   NAUKRI_COOKIE=name=value
-   ```
-   (Add more cookies joined by `; ` if several are needed for the session.)
-5. `docker compose restart backend`, then hit **Test Login** again — should be green.
+2. **F12** → **Application** → **Cookies** → `https://www.naukri.com`.
+3. This is a clean table (no 200 network requests). Right-click a row → **Copy value**,
+   or select several and copy. Join the `CookieName=Value` pairs with `; `.
 
-> If you'd like, you can copy the *whole* list: in the Application tab, right-click →
-> **Copy all**, then join all the `CookieName=Value` pairs with `; `.
+> The Application tab lists only the cookies for the current site — you don't have to
+> sift through network requests.
 
 ---
 

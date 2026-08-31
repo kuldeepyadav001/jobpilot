@@ -96,7 +96,8 @@ def _known_urls(db: Session, limit: int = 10000) -> set:
 
 
 async def run_all_scrapers(db: Session, keywords: List[str], location: str = "remote", max_per_portal: int = 10,
-                           on_progress=None, job_types: Optional[List[str]] = None) -> dict:
+                           on_progress=None, job_types: Optional[List[str]] = None,
+                           naukri_keywords: Optional[List[str]] = None) -> dict:
     """Runs scrapers over multiple keywords sequentially and returns aggregated stats.
 
     Each keyword runs in its own try/except so one failing keyword (or a single
@@ -106,18 +107,25 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     then closed once at the end.
 
     JOB vs INTERNSHIP: `job_types` selects which Internshala sections to scrape.
-      - ['jobs']        -> only /jobs/{kw}-jobs        (annual salary)
+      - ['jobs']        -> only  /jobs/{kw}-jobs        (annual salary)
       - ['internships'] -> only /internships/{kw}-internships (stipend)
       - ['jobs','internships'] (default) -> both, tagged separately.
     Naukri only has jobs, so it is always scraped as jobs.
 
-    `on_progress(i, keyword)` is called before each keyword so the UI can show
-    live "scraping keyword X/Y" progress instead of a bare "running".
+    PER-PORTAL KEYWORDS: Internshala uses `keywords`; Naukri uses `naukri_keywords`
+    (falling back to `keywords`). Naukri matches short/precise role terms far
+    better than long generic ones.
+
+    `on_progress(i, label)` is called before each keyword so the UI can show live
+    "scraping keyword X/Y" progress instead of a bare "running".
     """
     job_types = job_types or ["jobs", "internships"]
+    naukri_kws = [k.strip() for k in (naukri_keywords or keywords) if k.strip()]
+    internshala_kws = [k.strip() for k in keywords if k.strip()]
     total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
 
-    logger.info(f"Starting multi-keyword scraper loop. Keywords: {keywords}, types: {job_types}")
+    logger.info(f"Starting multi-keyword scraper loop. Internshala: {internshala_kws}, "
+                f"Naukri: {naukri_kws}, types: {job_types}")
 
     # Launch the browsers once; reuse them across the whole cycle.
     internshala = InternshalaScraper()
@@ -128,35 +136,50 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     # Jobs we already have descriptions for — skip re-fetching them (huge speedup).
     known = _known_urls(db)
 
+    counter = 0
+
     try:
-        idx = 0
+        # --- Internshala (uses the broad keywords for each selected section) ---
         for jt in job_types:
-            # Only t_section types -> regardless of keyword, in each section.
-            for kw in keywords:
-                idx += 1
-                kw_clean = kw.strip()
-                if not kw_clean:
-                    continue
+            for kw in internshala_kws:
+                counter += 1
                 if on_progress:
                     try:
-                        on_progress(idx, f"{kw_clean} [{jt}]")
+                        on_progress(counter, f"Internshala {jt.rstrip('s')}: {kw}")
                     except Exception:
                         pass
-
-                logger.info(f"Scraping keyword: '{kw_clean}' (type={jt})")
+                logger.info(f"Scraping Internshala '{kw}' ({jt})")
                 try:
-                    all_jobs = await scrape_keyword(
-                        kw_clean, location, max_per_portal,
-                        internshala=internshala, naukri=naukri, skip_urls=known,
+                    stats = save_scraped_jobs(db, await internshala.scrape(
+                        keyword=kw, location=location, max_results=max_per_portal,
+                        enrich=True, skip_urls=known,
                         job_type="internship" if jt == "internships" else "job",
-                    )
-                    stats = save_scraped_jobs(db, all_jobs)
+                    ))
                 except Exception as e:
-                    logger.error(f"[Scraper] Keyword '{kw_clean}' ({jt}) failed (isolated, continuing): {e}")
+                    logger.error(f"[Scraper] Internshala '{kw}' ({jt}) failed (isolated): {e}")
                     stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
-
                 for key in total_stats:
                     total_stats[key] += stats.get(key, 0)
+
+        # --- Naukri (uses tighter keywords; always jobs) ---
+        for kw in naukri_kws:
+            counter += 1
+            if on_progress:
+                try:
+                    on_progress(counter, f"Naukri: {kw}")
+                except Exception:
+                    pass
+            logger.info(f"Scraping Naukri '{kw}'")
+            try:
+                stats = save_scraped_jobs(db, await naukri.scrape(
+                    keyword=kw, location=location, max_results=max_per_portal,
+                    enrich=True, skip_urls=known, job_type="job",
+                ))
+            except Exception as e:
+                logger.error(f"[Scraper] Naukri '{kw}' failed (isolated): {e}")
+                stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+            for key in total_stats:
+                total_stats[key] += stats.get(key, 0)
     finally:
         await internshala.close()
         await naukri.close()
