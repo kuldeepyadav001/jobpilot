@@ -19,6 +19,7 @@ export const fetchSystemHealth = () => api.get('/system/health').then(r => r.dat
 
 export const runScraperDiagnostics = (params = {}) => api.post('/scrapers/diagnostics', null, { params }).then(r => r.data)
 export const fetchScraperDiagnosticsStatus = () => api.get('/scrapers/diagnostics/status').then(r => r.data)
+export const checkSession = (portal) => api.get('/scrapers/session-check', { params: { portal } }).then(r => r.data)
 export const runJobCleanup = () => api.delete('/jobs/cleanup').then(r => r.data)
 export const fetchResponses = () => api.get('/responses').then(r => r.data)
 export const triggerEmailScan = () => api.post('/responses/scan').then(r => r.data)

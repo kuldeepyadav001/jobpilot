@@ -46,7 +46,9 @@ class PlaywrightApplyEngine(BaseBrowser):
                     logger.info(f"[Smart Route] Detected recruiter email: {email}")
                     return "email", email
 
-            # Check 2: Look for on-page Easy Apply buttons
+            # Check 2: Look for on-page Easy Apply triggers (button OR the <a>
+            # 'Apply now' link Internshala actually uses — this is why applying
+            # failed: the old code only looked for <button> elements).
             apply_selectors = [
                 "button#easy_apply_button",
                 ".apply_now_button",
@@ -56,6 +58,9 @@ class PlaywrightApplyEngine(BaseBrowser):
                 "#apply-button",
                 "button:has-text('Apply')",
                 "button:has-text('Easy Apply')",
+                "a:has-text('Apply now')",
+                "a:has-text('Apply Now')",
+                "a[href*='interstitial/application']",
             ]
             for selector in apply_selectors:
                 try:
@@ -184,13 +189,21 @@ class PlaywrightApplyEngine(BaseBrowser):
                                "Not submitting. Refresh INTERNSHALA_COOKIE.")
                 return "needs_manual_action"
 
-            apply_btn = await page.query_selector("button#easy_apply_button, .apply_now_button")
+            # Find the apply trigger across BOTH <button> AND the <a> 'Apply now'
+            # link Internshala actually renders (the previous button-only selector
+            # matched nothing, so no real application ever fired).
+            apply_btn = (
+                await page.query_selector("button#easy_apply_button, .apply_now_button")
+                or await page.query_selector("a:has-text('Apply now')")
+                or await page.query_selector("a:has-text('Apply Now')")
+                or await page.query_selector("a[href*='interstitial/application']")
+            )
             if not apply_btn:
-                logger.warning("[Portal Apply] No apply button found on page. Flagging for manual.")
+                logger.warning("[Portal Apply] No apply link/button found on page. Flagging for manual.")
                 return "needs_manual_action"
 
             await apply_btn.click()
-            await page.wait_for_timeout(2500)
+            await page.wait_for_timeout(3000)
 
             # Internshala's apply is often 2 steps: a modal then Submit. Fill the
             # 'why should you be hired' box, then press the submit/continue button.

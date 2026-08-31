@@ -22,7 +22,10 @@ class NaukriScraper(BaseScraper):
         return None, None
 
     async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20,
-                     enrich: bool = True, skip_urls: Optional[set] = None) -> List[ScrapedJob]:
+                     enrich: bool = True, skip_urls: Optional[set] = None,
+                     job_type: str = "job") -> List[ScrapedJob]:
+        # Naukri only lists full-time jobs, so job_type is accepted for a uniform
+        # interface but is always forced to 'job' on these jobs.
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("NAUKRI_COOKIE", "")
         page = await self.ensure_page(cookie_string=cookie_string, domain=".naukri.com")

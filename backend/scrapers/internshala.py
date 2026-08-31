@@ -10,6 +10,7 @@ class InternshalaScraper(BaseScraper):
     BASE_URL = "https://internshala.com"
 
     def _parse_salary(self, salary_str: str):
+        """Internshala internships pay a monthly stipend; jobs pay an annual salary."""
         if not salary_str:
             return None, None
         nums = [int(s.replace(",", "")) for s in re.findall(r"\d[\d,]*", salary_str)]
@@ -19,44 +20,68 @@ class InternshalaScraper(BaseScraper):
             return nums[0], nums[1]
         return None, None
 
+    def _search_url(self, keyword: str, job_type: str, location: str) -> str:
+        """Build the correct Internshala search URL for jobs vs internships.
+
+        Internshala has two SEPARATE sections:
+          - Internships: /internships/{kw}-internships   (monthly stipend)
+          - Jobs:        /jobs/{kw}-jobs                 (annual salary)
+        """
+        kw = keyword.strip().lower().replace(" ", "-")
+        if job_type == "internship":
+            url = f"{self.BASE_URL}/internships/{kw}-internships"
+        else:
+            url = f"{self.BASE_URL}/jobs/{kw}-jobs"
+        if location:
+            loc = location.strip().lower().replace(" ", "-")
+            url += f"-in-{loc}"
+        return url
+
     async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20,
-                     enrich: bool = True, skip_urls: Optional[set] = None) -> List[ScrapedJob]:
+                     enrich: bool = True, skip_urls: Optional[set] = None,
+                     job_type: str = "job") -> List[ScrapedJob]:
+        """Scrapes Internshala. `job_type` selects the section: 'job' or 'internship'."""
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("INTERNSHALA_COOKIE", "")
         page = await self.ensure_page(cookie_string=cookie_string, domain=".internshala.com")
+        is_internship = (job_type == "internship")
 
         try:
-            query_keyword = keyword.strip().lower().replace(" ", "-")
-            search_url = f"{self.BASE_URL}/jobs/{query_keyword}-jobs"
-            if location:
-                query_location = location.strip().lower().replace(" ", "-")
-                search_url += f"-in-{query_location}"
-
+            search_url = self._search_url(keyword, job_type, location or "")
             logger.info(f"[Internshala] Navigating to: {search_url}")
             await page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
 
-            # Check session health if cookies were provided
             if cookie_string:
                 session_ok = await self.check_session_valid(page, "internshala")
                 if not session_ok:
                     logger.warning("[Internshala] Session validation failed. Proceeding in guest browsing mode.")
 
-            await page.wait_for_selector(".individual_internship", timeout=15000)
-            cards = await page.query_selector_all(".individual_internship")
+            cards = await page.query_selector_all(".individual_internship, .individual-job")
+            if not cards:
+                cards = await page.query_selector_all(".job-detail, .internship_detail, .individual_internship")
 
             for card in cards[:max_results]:
                 try:
-                    title_elem = await card.query_selector(".job-internship-name")
-                    company_elem = await card.query_selector(".company-name")
-                    location_elem = await card.query_selector(".locations span")
-                    salary_elem = await card.query_selector(".desktop .sal") or await card.query_selector(".salary .desktop")
-                    link_elem = await card.query_selector(".job-internship-name a") or await card.query_selector("a.job-title-href")
+                    title_elem = (await card.query_selector(".job-internship-name")
+                                  or await card.query_selector("h3")
+                                  or await card.query_selector(".job-title")
+                                  or await card.query_selector(".profile"))
+                    company_elem = (await card.query_selector(".company-name")
+                                    or await card.query_selector(".company")
+                                    or await card.query_selector(".link_display"))
+                    location_elem = await card.query_selector(".locations span") or await card.query_selector(".location")
+                    salary_elem = (await card.query_selector(".stipend .desktop, .salary .desktop, .salary")
+                                   or await card.query_selector(".desktop .sal"))
+                    link_elem = (await card.query_selector(".job-internship-name a")
+                                 or await card.query_selector("a.job-title-href")
+                                 or await card.query_selector(".link_display a")
+                                 or await card.query_selector("a"))
 
-                    if not title_elem or not company_elem or not link_elem:
+                    if not title_elem or not link_elem:
                         continue
 
                     title = (await title_elem.inner_text()).strip()
-                    company_name = (await company_elem.inner_text()).strip()
+                    company_name = (await company_elem.inner_text()).strip() if company_elem else "Unknown"
                     loc = (await location_elem.inner_text()).strip() if location_elem else "Remote"
                     sal_text = (await salary_elem.inner_text()).strip() if salary_elem else ""
                     sal_min, sal_max = self._parse_salary(sal_text)
@@ -72,17 +97,16 @@ class InternshalaScraper(BaseScraper):
                         salary_min=sal_min,
                         salary_max=sal_max,
                         description="",  # Will be enriched below
-                        url=job_url
+                        url=job_url,
+                        job_type="internship" if is_internship else "job",
                     ))
                 except Exception as e:
                     logger.debug(f"[Internshala] Error parsing card: {e}")
                     continue
 
-            logger.info(f"[Internshala] Scraped {len(jobs)} jobs from listing page")
+            logger.info(f"[Internshala] Scraped {len(jobs)} {job_type}s from listing page")
 
             # --- ENRICH: Fetch full JD for each job ---
-            # Skip jobs we already have a description for (re-scrapes are common) to
-            # avoid re-fetching every detail page — the single biggest time sink.
             if enrich and skip_urls:
                 skipped = sum(1 for j in jobs if j.url in skip_urls)
                 jobs = [j for j in jobs if j.url not in skip_urls]
@@ -93,9 +117,9 @@ class InternshalaScraper(BaseScraper):
                 logger.info(f"[Internshala] Enriching {len(jobs)} jobs with full descriptions...")
             for job in jobs:
                 if not enrich:
-                    break  # Lightweight mode (diagnostics): listing-card data is enough
+                    break
                 try:
-                    await asyncio.sleep(2)  # Rate limit safety delay
+                    await asyncio.sleep(2)
                     await page.goto(job.url, wait_until="domcontentloaded", timeout=30000)
 
                     desc_selectors = [
@@ -105,6 +129,7 @@ class InternshalaScraper(BaseScraper):
                         ".job-detail",
                         "#job_description",
                         ".description",
+                        ".detail_container",
                     ]
 
                     full_desc = ""

@@ -15,6 +15,7 @@ class ScrapedJob:
     salary_max: Optional[int]
     description: Optional[str]
     url: str
+    job_type: str = "job"  # "job" | "internship"
 
 
 class BaseBrowser:

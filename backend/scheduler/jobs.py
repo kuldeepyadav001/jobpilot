@@ -134,9 +134,13 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
         set_step(f"Scraping {len(kw_list)} keywords on Internshala + Naukri…")
         logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list} "
                     f"(location={settings.search_location}, max_per_portal={settings.max_per_portal})...")
+        # Respect the jobs-only / internships-only choice (Scrape Types).
+        job_types = [t.strip() for t in settings.scrape_types.split(",") if t.strip()]
+        total_sections = max(1, len(job_types)) * len(kw_list)
         scrape_stats = await run_all_scrapers(
             db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
-            on_progress=lambda i, k: set_step(f"Scraping keyword {i}/{len(kw_list)}: {k}"),
+            on_progress=lambda i, k: set_step(f"Scraping {i}/{total_sections}: {k}"),
+            job_types=job_types,
         )
         set_step("Scraping done — saving jobs…")
         logger.info(f"[Pipeline] Scraped jobs statistics: {scrape_stats}")

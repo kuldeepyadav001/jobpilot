@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     search_location: str = "remote"
     # How many cards to pull per portal per keyword in one scrape cycle.
     max_per_portal: int = 5
+    # Which Internshala sections to scrape. Comma list of any of: jobs, internships.
+    #   jobs         -> only  /jobs/{kw}-jobs          (annual salary)
+    #   internships  -> only /internships/{kw}-internships (monthly stipend)
+    #   jobs,internships -> both, tagged job_type separately.
+    # Keep only the one you want to keep the two sections fully separate.
+    scrape_types: str = "jobs,internships"
 
     # "GOOD PAY" preference: skip jobs whose known salary_min is below this (yearly).
     # 0 = off (accept any known salary). Jobs with UNKNOWN salary are kept (can't judge)

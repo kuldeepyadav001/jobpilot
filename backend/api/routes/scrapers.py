@@ -107,6 +107,55 @@ def diagnostics_status():
     )
 
 
+class SessionCheck(BaseModel):
+    portal: str
+    ok: bool
+    logged_in: bool
+    message: str
+
+
+async def _check_session(portal: str) -> SessionCheck:
+    """Loads the portal in a headless browser with the configured cookie and checks
+    whether we are actually logged in. This is the REAL cookie validity test (the
+    settings page only measures the cookie string length, which proves nothing)."""
+    import os
+    from scrapers.base import BaseBrowser
+
+    if portal == "naukri":
+        start_url = "https://www.naukri.com/"
+        cookie_env = os.getenv("NAUKRI_COOKIE", "")
+        domain = ".naukri.com"
+    else:
+        start_url = "https://internshala.com/internships"
+        cookie_env = os.getenv("INTERNSHALA_COOKIE", "")
+        domain = ".internshala.com"
+
+    if not cookie_env:
+        return SessionCheck(portal=portal, ok=False, logged_in=False,
+                            message=f"No {portal.upper()}_COOKIE set in .env.")
+
+    browser = BaseBrowser(headless=True)
+    try:
+        page = await browser.init_browser(cookie_string=cookie_env, domain=domain)
+        await page.goto(start_url, wait_until="domcontentloaded", timeout=45000)
+        # check_session_valid inspects URL/logout text to decide if logged in.
+        logged_in = await browser.check_session_valid(page, portal)
+        msg = ("Logged in (cookie valid)." if logged_in
+               else "NOT logged in — cookie likely expired. Refresh it in .env.")
+        return SessionCheck(portal=portal, ok=logged_in, logged_in=logged_in, message=msg)
+    except Exception as e:
+        return SessionCheck(portal=portal, ok=False, logged_in=False,
+                            message=f"Session check error: {type(e).__name__}: {e}")
+    finally:
+        await browser.close()
+
+
+@router.get("/session-check", response_model=List[SessionCheck])
+async def session_check(portal: str = Query("internshala")):
+    """Verifies the configured cookie actually logs into the portal (real test)."""
+    return [await _check_session(portal)]
+
+
 def _resolve_keywords(keywords: Optional[str]) -> List[str]:
     if keywords and keywords.strip():
         return [k.strip() for k in keywords.split(",") if k.strip()]

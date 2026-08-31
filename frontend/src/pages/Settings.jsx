@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics, fetchScraperDiagnosticsStatus, runJobCleanup } from '../api/client'
-import { fetchCookieHealth } from '../api/client'
+import { fetchCookieHealth, checkSession } from '../api/client'
 import { Play, Loader2, KeyRound, Cpu, Database, Mail, Timer, Radar, ExternalLink, Trash2 } from 'lucide-react'
 
 export default function Settings() {
@@ -54,6 +54,16 @@ export default function Settings() {
       setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] CLEANUP: removed ${cleanMutation.data?.deleted ?? 'some'} stale jobs`])
     },
   })
+
+  // Live cookie validity test — actually logs into the portal with the cookie.
+  const sessionMutation = useMutation({
+    mutationFn: (portal) => checkSession(portal),
+    onSuccess: (data) => {
+      setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] SESSION ${data[0]?.portal?.toUpperCase()}: ${data[0]?.message}`])
+    },
+    onError: (err) => setLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] SESSION CHECK ERROR: ${err.response?.data?.detail || err.message || 'failed'}`]),
+  })
+  const sessionResult = sessionMutation.data?.[0]
 
   const infoCards = [
     { icon: Cpu, label: 'Local AI Model', value: 'Ollama qwen2.5:1.5b', sub: 'URL: http://ollama:11434 (in-network)' },
@@ -110,20 +120,36 @@ export default function Settings() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {cookies.map((c) => (
-            <div key={c.portal} className="bg-surface2 p-3 border border-line rounded-xl flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-sm uppercase text-ink">{c.portal}</p>
-                <p className="text-xs text-ink-faint">Cookie length: {c.cookie_length} chars</p>
+            <div key={c.portal} className="bg-surface2 p-3 border border-line rounded-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm uppercase text-ink">{c.portal}</p>
+                  <p className="text-xs text-ink-faint">Cookie length: {c.cookie_length} chars</p>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1 rounded-full text-white ${
+                  c.status === 'configured' ? 'bg-success' : c.status === 'empty' ? 'bg-warn' : 'bg-danger'
+                }`}>
+                  {c.status === 'configured' ? '✅ Active' : c.status === 'empty' ? '⚠️ Too Short' : '❌ Missing'}
+                </span>
               </div>
-              <span className={`text-xs font-bold px-3 py-1 rounded-full text-white ${
-                c.status === 'configured' ? 'bg-success' : c.status === 'empty' ? 'bg-warn' : 'bg-danger'
-              }`}>
-                {c.status === 'configured' ? '✅ Active' : c.status === 'empty' ? '⚠️ Too Short' : '❌ Missing'}
-              </span>
+              <button
+                onClick={() => sessionMutation.mutate(c.portal)}
+                disabled={sessionMutation.isPending}
+                className="btn-ghost w-full mt-2 text-xs">
+                {sessionMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking login…</> : <>Test Login (live)</>}
+              </button>
+              {sessionResult && sessionResult.portal === c.portal && (
+                <p className={`text-[11px] font-bold mt-1 ${sessionResult.ok ? 'text-success' : 'text-danger'}`}>
+                  {sessionResult.logged_in ? '✅ Logged in — cookie works.' : '❌ Not logged in — cookie invalid/expired.'}
+                </p>
+              )}
             </div>
           ))}
         </div>
-        <p className="text-xs text-ink-faint">If a cookie shows "Missing" or "Too Short", update it in your .env file and restart the backend.</p>
+        <p className="text-xs text-ink-faint">
+          "Cookie length" only proves text is present. <strong>Test Login</strong> actually loads the portal with
+          your cookie and confirms you're signed in — if it's red, refresh the cookie in .env and restart the backend.
+        </p>
       </div>
 
       {/* Scraper validation (dry-run) */}
