@@ -112,40 +112,68 @@ class SessionCheck(BaseModel):
     ok: bool
     logged_in: bool
     message: str
+    cookies_injected: int
+    final_url: str = ""
 
 
 async def _check_session(portal: str) -> SessionCheck:
-    """Loads the portal in a headless browser with the configured cookie and checks
-    whether we are actually logged in. This is the REAL cookie validity test (the
-    settings page only measures the cookie string length, which proves nothing)."""
+    """Deterministically verifies the configured cookie by navigating to an
+    AUTH-REQUIRED page and checking for a login redirect.
+
+    The old check inspected the portal homepage for a profile element, which Naukri
+    renders unreliably -> frequent FALSE "not logged in" even with a valid cookie.
+    Instead we navigate to a route that only loads when you are signed in, and
+    treat a redirect-to-login (or 'Login' page) as the definitive "not logged in"
+    signal. We also report how many cookies were actually injected."""
     import os
     from scrapers.base import BaseBrowser
 
     if portal == "naukri":
-        start_url = "https://www.naukri.com/"
+        start_url = "https://www.naukri.com/mnjuser/homepage"  # logged-in dashboard
         cookie_env = os.getenv("NAUKRI_COOKIE", "")
         domain = ".naukri.com"
     else:
-        start_url = "https://internshala.com/internships"
+        start_url = "https://internshala.com/student/dashboard"  # logged-in dashboard
         cookie_env = os.getenv("INTERNSHALA_COOKIE", "")
         domain = ".internshala.com"
 
     if not cookie_env:
         return SessionCheck(portal=portal, ok=False, logged_in=False,
-                            message=f"No {portal.upper()}_COOKIE set in .env.")
+                            message=f"No {portal.upper()}_COOKIE set in .env.", cookies_injected=0)
 
     browser = BaseBrowser(headless=True)
     try:
         page = await browser.init_browser(cookie_string=cookie_env, domain=domain)
+        # Confirm how many cookies were actually injected into the context.
+        try:
+            ctx_cookies = await browser.context.cookies()
+            injected = len(ctx_cookies)
+        except Exception:
+            injected = 0
+
         await page.goto(start_url, wait_until="domcontentloaded", timeout=45000)
-        # check_session_valid inspects URL/logout text to decide if logged in.
-        logged_in = await browser.check_session_valid(page, portal)
-        msg = ("Logged in (cookie valid)." if logged_in
-               else "NOT logged in — cookie likely expired. Refresh it in .env.")
-        return SessionCheck(portal=portal, ok=logged_in, logged_in=logged_in, message=msg)
+        await page.wait_for_timeout(3000)
+        final_url = page.url
+
+        # DEFINITIVE check: did we get redirected to a login / register / error page?
+        login_markers = ["/login", "signin", "sign-in", "register", "login.php", "auth", "guest"]
+        redirected = any(m in final_url.lower() for m in login_markers)
+        # A logged-in dashboard won't match those markers.
+        logged_in = not redirected and injected > 0
+
+        if logged_in:
+            msg = f"Logged in (cookie valid). {injected} cookies injected."
+        elif injected == 0:
+            msg = "NO cookies were injected (got string but none parsed). Check NAUKRI_COOKIE format in .env."
+        else:
+            msg = ("Got to a login page — the session cookies did NOT authenticate "
+                   "(expired, or copied from a page that wasn't the logged-in session). "
+                   f"Injected {injected} cookies; landed on {final_url}")
+        return SessionCheck(portal=portal, ok=logged_in, logged_in=logged_in,
+                            message=msg, cookies_injected=injected, final_url=final_url)
     except Exception as e:
         return SessionCheck(portal=portal, ok=False, logged_in=False,
-                            message=f"Session check error: {type(e).__name__}: {e}")
+                            message=f"Session check error: {type(e).__name__}: {e}", cookies_injected=0)
     finally:
         await browser.close()
 

@@ -139,9 +139,14 @@ export default function Settings() {
                 {sessionMutation.isPending ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking login…</> : <>Test Login (live)</>}
               </button>
               {sessionResult && sessionResult.portal === c.portal && (
-                <p className={`text-[11px] font-bold mt-1 ${sessionResult.ok ? 'text-success' : 'text-danger'}`}>
-                  {sessionResult.logged_in ? '✅ Logged in — cookie works.' : '❌ Not logged in — cookie invalid/expired.'}
-                </p>
+                <div className={`text-[11px] font-bold mt-1 ${sessionResult.ok ? 'text-success' : 'text-danger'}`}>
+                  {sessionResult.logged_in
+                    ? `✅ Logged in — cookie works (${sessionResult.cookies_injected ?? '?'} cookies injected).`
+                    : `❌ Not authenticated (${sessionResult.cookies_injected ?? 0} cookies injected).`}
+                  {sessionResult.final_url && !sessionResult.logged_in && (
+                    <span className="text-ink-faint font-medium block">Landed on: {sessionResult.final_url}</span>
+                  )}
+                </div>
               )}
             </div>
           ))}
