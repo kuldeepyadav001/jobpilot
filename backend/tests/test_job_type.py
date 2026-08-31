@@ -35,6 +35,14 @@ def test_search_url_routes_to_correct_section():
     assert "jobs/java-developer-jobs-in-remote" in s._search_url("java developer", "job", "remote")
 
 
+def test_internships_only_skips_naukri():
+    from scrapers.service import _is_internships_only
+    assert _is_internships_only(["internships"]) is True
+    assert _is_internships_only(["jobs"]) is False
+    assert _is_internships_only(["jobs", "internships"]) is False
+    assert _is_internships_only(["internships", "jobs"]) is False
+
+
 def test_section_is_authoritative_over_title():
     from scrapers.service import _resolve_job_type
     # An internship-SECTION posting stays internship even if title says 'Data Scientist'.

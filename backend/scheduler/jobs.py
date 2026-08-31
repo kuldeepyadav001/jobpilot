@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from loguru import logger
 from core.database import SessionLocal
 from core.config import settings
-from scrapers.service import run_all_scrapers
+from scrapers.service import run_all_scrapers, _is_internships_only
 from engine.service import score_unmatched_jobs
 from engine.matcher import select_best_resume
 from engine.application_service import execute_job_application
@@ -137,7 +137,8 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
         # Respect the jobs-only / internships-only choice (Scrape Types) + per-portal keywords.
         job_types = [t.strip() for t in settings.scrape_types.split(",") if t.strip()]
         naukri_kws = [k.strip() for k in settings.naukri_keywords.split(",") if k.strip()] or kw_list
-        total_steps = (max(1, len(job_types)) * len(kw_list)) + len(naukri_kws)
+        # When internships-only, Naukri is skipped, so it doesn't contribute steps.
+        total_steps = (max(1, len(job_types)) * len(kw_list)) + (0 if _is_internships_only(job_types) else len(naukri_kws))
         scrape_stats = await run_all_scrapers(
             db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
             on_progress=lambda i, k: set_step(f"Scraping {i}/{total_steps}: {k}"),

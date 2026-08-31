@@ -34,6 +34,13 @@ def _resolve_job_type(portal: str, section_type: Optional[str], title: str) -> s
     return "job"
 
 
+def _is_internships_only(job_types: Optional[List[str]]) -> bool:
+    """True when the user chose ONLY the internships section (skip Naukri)."""
+    if not job_types:
+        return False
+    return [t.strip() for t in job_types if t.strip()] == ["internships"]
+
+
 def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
     saved_count = 0
     skipped_existing = 0
@@ -124,8 +131,12 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     internshala_kws = [k.strip() for k in keywords if k.strip()]
     total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
 
+    # Naukri only lists JOBS. If the user chose internships-only, skip Naukri so we
+    # don't pull full-time jobs into an internship-only feed.
+    skip_naukri = _is_internships_only(job_types)
+
     logger.info(f"Starting multi-keyword scraper loop. Internshala: {internshala_kws}, "
-                f"Naukri: {naukri_kws}, types: {job_types}")
+                f"Naukri: {naukri_kws}, types: {job_types}, skip_naukri: {skip_naukri}")
 
     # Launch the browsers once; reuse them across the whole cycle.
     internshala = InternshalaScraper()
@@ -162,24 +173,28 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                     total_stats[key] += stats.get(key, 0)
 
         # --- Naukri (uses tighter keywords; always jobs) ---
-        for kw in naukri_kws:
-            counter += 1
-            if on_progress:
+        # Skipped when the user chose internships-only (Naukri has no internships).
+        if not skip_naukri:
+            for kw in naukri_kws:
+                counter += 1
+                if on_progress:
+                    try:
+                        on_progress(counter, f"Naukri: {kw}")
+                    except Exception:
+                        pass
+                logger.info(f"Scraping Naukri '{kw}'")
                 try:
-                    on_progress(counter, f"Naukri: {kw}")
-                except Exception:
-                    pass
-            logger.info(f"Scraping Naukri '{kw}'")
-            try:
-                stats = save_scraped_jobs(db, await naukri.scrape(
-                    keyword=kw, location=location, max_results=max_per_portal,
-                    enrich=True, skip_urls=known, job_type="job",
-                ))
-            except Exception as e:
-                logger.error(f"[Scraper] Naukri '{kw}' failed (isolated): {e}")
-                stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
-            for key in total_stats:
-                total_stats[key] += stats.get(key, 0)
+                    stats = save_scraped_jobs(db, await naukri.scrape(
+                        keyword=kw, location=location, max_results=max_per_portal,
+                        enrich=True, skip_urls=known, job_type="job",
+                    ))
+                except Exception as e:
+                    logger.error(f"[Scraper] Naukri '{kw}' failed (isolated): {e}")
+                    stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+                for key in total_stats:
+                    total_stats[key] += stats.get(key, 0)
+        else:
+            logger.info("[Scraper] Internships-only mode: skipping Naukri (jobs only).")
     finally:
         await internshala.close()
         await naukri.close()
