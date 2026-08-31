@@ -20,6 +20,20 @@ def detect_job_type(title: str) -> str:
     return "job"
 
 
+def _resolve_job_type(portal: str, section_type: Optional[str], title: str) -> str:
+    """Authoritative job_type decision.
+
+    Internshala is split into two honest sections, so its chosen section is the
+    source of truth (an internship-section posting is an internship even if the
+    title doesn't say 'intern' — e.g. 'Data Scientist' in /internships/).
+    Naukri mixes jobs+internships in one listing, so we rely on the title there.
+    We also never overrule an explicit 'internship' from the title.
+    """
+    if section_type == "internship" or detect_job_type(title) == "internship":
+        return "internship"
+    return "job"
+
+
 def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
     saved_count = 0
     skipped_existing = 0
@@ -56,7 +70,7 @@ def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
             salary_max=item.salary_max,
             description=item.description,
             url=item.url,
-            job_type=detect_job_type(item.title),
+            job_type=_resolve_job_type(item.portal, item.job_type, item.title),
             is_applied=False,
             is_blacklisted=False,
         )

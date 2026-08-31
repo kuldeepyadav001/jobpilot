@@ -33,3 +33,14 @@ def test_search_url_routes_to_correct_section():
     assert "jobs/python-developer-jobs" in s._search_url("python developer", "job", "")
     # Location appends correctly.
     assert "jobs/java-developer-jobs-in-remote" in s._search_url("java developer", "job", "remote")
+
+
+def test_section_is_authoritative_over_title():
+    from scrapers.service import _resolve_job_type
+    # An internship-SECTION posting stays internship even if title says 'Data Scientist'.
+    assert _resolve_job_type("internshala", "internship", "Data Scientist") == "internship"
+    # Naukri relies on the title (mixes both types in one listing).
+    assert _resolve_job_type("naukri", "job", "Backend Developer Intern") == "internship"
+    assert _resolve_job_type("naukri", "job", "Backend Developer") == "job"
+    # A jobs-section Internshala posting that isn't titled 'intern' -> job.
+    assert _resolve_job_type("internshala", "job", "Senior Python Developer") == "job"
