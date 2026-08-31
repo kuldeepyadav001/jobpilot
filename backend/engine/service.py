@@ -49,7 +49,11 @@ def score_unmatched_jobs(db: Session) -> int:
 
     for job in unscored_jobs:
         jd_text = f"{job.title} {job.description or ''}"
-        best_resume, score = select_best_resume(jd_text, active_resumes)
+        # Pass title + job_type so internships get the bounded role-title relevance
+        # term (their JDs are diluted with boilerplate, but titles are on-point).
+        best_resume, score = select_best_resume(
+            jd_text, active_resumes, title=job.title or "", job_type=job.job_type or "job"
+        )
         job.match_score = score
         scored_count += 1
 

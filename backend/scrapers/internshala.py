@@ -20,6 +20,42 @@ class InternshalaScraper(BaseScraper):
             return nums[0], nums[1]
         return None, None
 
+    async def _extract_skills(self, page) -> str:
+        """Best-effort capture of the 'Skill(s) required' chips on a detail page.
+
+        Internshala renders skills as small chip/tag elements outside the main
+        description. We try a few known containers; if none match we fall back to
+        grabbing text after a 'Skill(s) required' heading.
+        """
+        try:
+            for sel in (
+                ".skills-container",
+                ".skill-list",
+                ".skill_list",
+                ".specific-skills",
+                "div:has-text('Skill(s) required')",
+                "div:has-text('Skills required')",
+            ):
+                el = await page.query_selector(sel)
+                if el:
+                    txt = (await el.inner_text()).strip()
+                    if len(txt) > 15:
+                        return " ".join(txt.split())[:1500]
+            # Fallback: any chip-looking element near the skills heading.
+            chips = await page.query_selector_all(
+                ".skill-chip, .skill_tag, .skill_tile, span[class*='skill']"
+            )
+            labels = []
+            for c in chips[:30]:
+                t = (await c.inner_text()).strip()
+                if t:
+                    labels.append(t)
+            if labels:
+                return ", ".join(labels)[:1500]
+        except Exception as e:
+            logger.debug(f"[Internshala] Skill extraction failed: {e}")
+        return ""
+
     def _search_url(self, keyword: str, job_type: str, location: str) -> str:
         """Build the CORRECT Internshala search URL for jobs vs internships.
 
@@ -146,11 +182,21 @@ class InternshalaScraper(BaseScraper):
                             if len(full_desc) > 50:
                                 break
 
+                    # Capture the "Skill(s) required" chips too — on Internshala the
+                    # skills live OUTSIDE the description container, and they are the
+                    # single strongest relevance signal against a resume. Including
+                    # them lifts internship match scores meaningfully.
+                    skills_text = await self._extract_skills(page)
+
                     if full_desc and len(full_desc) > 50:
                         job.description = full_desc[:3000]
+                        if skills_text:
+                            job.description = f"{job.description}\n\nSkills required: {skills_text}"
                         logger.debug(f"[Internshala] Got full JD ({len(full_desc)} chars) for: {job.title[:40]}")
                     else:
                         job.description = f"{job.title} at {job.company_name}"
+                        if skills_text:
+                            job.description += f"\n\nSkills required: {skills_text}"
 
                 except Exception as e:
                     logger.debug(f"[Internshala] Failed to enrich JD for {job.url}: {e}")

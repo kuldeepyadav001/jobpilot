@@ -84,3 +84,27 @@ def test_weak_match_stays_low_band():
     resume = _resume("Python developer. FastAPI.", ["python", "fastapi"])
     score = compute_hybrid_match_score(resume, "Java Spring Boot microservices engineer.")
     assert score < 35
+
+
+def test_title_relevance_boosts_internship_without_inflating_irrelevant():
+    from engine.matcher import _title_relevance
+    tags = ["python", "django", "docker", "aws", "postgresql"]
+    # On-point internship title -> meaningful bounded bonus.
+    on_point = _title_relevance("Backend Development", tags)
+    # Unrelated title -> 0 bonus.
+    unrelated = _title_relevance("Sales / Marketing", tags)
+    assert on_point > 0
+    assert unrelated == 0
+    # Even a perfect title match is bounded (never jumps a bad match to top).
+    full = _title_relevance("Python Django Docker AWS PostgreSQL", tags)
+    assert full <= 18.0
+
+
+def test_internship_title_term_raises_score():
+    from types import SimpleNamespace as NS
+    from engine.matcher import compute_hybrid_match_score
+    resume = NS(tags=["python", "django"], parsed_text="Python developer. Django.")
+    jd = "Some generic internship description about learning and responsibilities."
+    base = compute_hybrid_match_score(resume, jd)
+    with_title = compute_hybrid_match_score(resume, jd, title="Python Django Developer", job_type="internship")
+    assert with_title > base

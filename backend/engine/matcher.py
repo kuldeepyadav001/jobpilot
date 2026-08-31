@@ -47,10 +47,77 @@ def calculate_keyword_coverage(tags: List[str], jd_text: str, denominator_cap: i
     return round(coverage, 2)
 
 
-def compute_hybrid_match_score(resume: Resume, job_description: str) -> float:
+# Role-family words map to the skill tags a resume in that family would carry.
+# Used so Internshala-style titles ("Backend Development", "Machine Learning")
+# honestly boost the matching resume even though the title isn't a literal skill list.
+_ROLE_FAMILIES = {
+    "backend": ["python", "java", "node", "go", "golang", "django", "flask", "fastapi",
+                "spring", "sql", "postgresql", "rest api", "apis", "redis"],
+    "frontend": ["react", "javascript", "typescript", "html", "css", "angular",
+                 "vue", "next.js", "ui", "ux"],
+    "full stack": ["python", "react", "javascript", "node", "java", "sql", "html",
+                   "css", "django", "fastapi"],
+    "developer": ["python", "java", "javascript", "react", "sql", "git", "api"],
+    "devops": ["docker", "kubernetes", "aws", "terraform", "ci/cd", "linux", "jenkins"],
+    "cloud": ["aws", "azure", "gcp", "docker", "kubernetes", "terraform", "linux"],
+    "data": ["python", "sql", "pandas", "numpy", "power bi", "excel", "tableau", "etl"],
+    "data science": ["python", "pandas", "numpy", "machine learning", "scikit", "sql"],
+    "machine learning": ["python", "machine learning", "tensorflow", "pytorch", "nlp",
+                         "sklearn", "deep learning"],
+    "ai": ["python", "machine learning", "nlp", "tensorflow", "pytorch", "llm", "ai"],
+    "web": ["python", "react", "javascript", "html", "css", "django", "node"],
+    "testing": ["pytest", "selenium", "automation", "qa", "python"],
+}
+
+
+def _title_relevance(title: str, tags: List[str], max_bonus: float = 18.0, cap: int = 5) -> float:
+    """Bounded role-title / role-family relevance.
+
+    Internshala internship titles are concise ROLE names (e.g. "Backend
+    Development", "Machine Learning") — strong, real relevance signal that a thin
+    generic job description can drown out. We add a bounded bonus (up to
+    `max_bonus`) from two sources:
+      * literal skill-tag matches in the title, and
+      * role-family overlaps (the title names a family the resume belongs to).
+    Capped so an irrelevant title can never push a bad match high.
     """
-    Combines Keyword Coverage (55%) + TF-IDF Contextual Similarity (45%).
-    Produces realistic ATS scores in the 30% - 95% range.
+    if not title or not tags:
+        return 0.0
+    ct = clean_text(title)
+    if not ct:
+        return 0.0
+
+    # Source A: literal skill tags appearing in the title.
+    matched = 0
+    for tag in tags:
+        ctg = clean_text(tag)
+        if ctg and re.search(r"\b" + re.escape(ctg) + r"\b", ct):
+            matched += 1
+    literal = min(matched, cap) / cap
+
+    # Source B: role-family overlap (title names a family the resume belongs to).
+    tag_set = {clean_text(t) for t in tags if clean_text(t)}
+    family_hits = 0
+    for family, family_tags in _ROLE_FAMILIES.items():
+        if re.search(r"\b" + re.escape(family) + r"\b", ct):
+            # This family is named in the title; does the resume carry it?
+            overlap = any(clean_text(ft) in tag_set or ft in tag_set for ft in family_tags)
+            if overlap:
+                family_hits += 1
+    family = min(family_hits, 3) / 3
+
+    relevant = max(literal, family)
+    return round(relevant * max_bonus, 2)
+
+
+def compute_hybrid_match_score(resume: Resume, job_description: str,
+                               title: str = "", job_type: str = "job") -> float:
+    """
+    Combines Keyword Coverage + TF-IDF Contextual Similarity + a bounded
+    role-title term. Produces realistic ATS scores in the 30% - 95% range.
+
+    `title`/`job_type` are optional; when omitted the title term contributes 0 so
+    existing (job-oriented) callers are unchanged.
     """
     cleaned_jd = clean_text(job_description)
     if not cleaned_jd:
@@ -90,6 +157,12 @@ def compute_hybrid_match_score(resume: Resume, job_description: str) -> float:
     else:
         final_score = tfidf_score
 
+    # 4. Bounded role-title relevance (mostly helps internships, whose concise
+    # titles carry real signal but whose JDs are diluted with boilerplate). It only
+    # applies when a title is supplied and can never push an irrelevant match high.
+    if title:
+        final_score += _title_relevance(title, tags)
+
     return round(min(final_score, 100.0), 2)
 
 
@@ -115,10 +188,12 @@ def compute_match_score(resume_input: Union[Resume, str], job_description: str) 
         return 0.0
 
 
-def select_best_resume(job_description: str, resumes: List[Resume]) -> Tuple[Optional[Resume], float]:
+def select_best_resume(job_description: str, resumes: List[Resume],
+                       title: str = "", job_type: str = "job") -> Tuple[Optional[Resume], float]:
     """
     Evaluates all active resumes against a job description.
-    Returns the highest-scoring (Resume, score) tuple.
+    Returns the highest-scoring (Resume, score) tuple. `title`/`job_type` are
+    forwarded to the scorer so internships get a fair, bounded title-relevance term.
     """
     best_resume: Optional[Resume] = None
     highest_score: float = -1.0
@@ -127,7 +202,7 @@ def select_best_resume(job_description: str, resumes: List[Resume]) -> Tuple[Opt
         if not resume.is_active:
             continue
 
-        score = compute_hybrid_match_score(resume, job_description)
+        score = compute_hybrid_match_score(resume, job_description, title=title, job_type=job_type)
         if score > highest_score:
             highest_score = score
             best_resume = resume
