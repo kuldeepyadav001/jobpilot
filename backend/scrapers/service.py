@@ -72,7 +72,17 @@ def save_scraped_jobs(db: Session, scraped_jobs: List[ScrapedJob]) -> dict:
     }
 
 
-async def run_all_scrapers(db: Session, keywords: List[str], location: str = "remote", max_per_portal: int = 10) -> dict:
+def _known_urls(db: Session, limit: int = 10000) -> set:
+    """Set of job URLs already stored, so re-scrapes skip re-fetching their JDs."""
+    try:
+        rows = db.query(Job.url).filter(Job.url.isnot(None)).limit(limit).all()
+        return {r[0] for r in rows}
+    except Exception:
+        return set()
+
+
+async def run_all_scrapers(db: Session, keywords: List[str], location: str = "remote", max_per_portal: int = 10,
+                           on_progress=None) -> dict:
     """Runs scrapers over multiple keywords sequentially and returns aggregated stats.
 
     Each keyword runs in its own try/except so one failing keyword (or a single
@@ -82,6 +92,9 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     then closed once at the end. (Previously a fresh Chromium was launched and
     closed for every keyword × portal — 20 launches per 10-keyword cycle — which
     spiked CPU and heat on the host.)
+
+    `on_progress(i, keyword)` is called before each keyword so the UI can show
+    live "scraping keyword X/Y" progress instead of a bare "running".
     """
     total_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
 
@@ -93,17 +106,27 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     internshala.close_browser_on_scrape = False
     naukri.close_browser_on_scrape = False
 
+    # Jobs we already have descriptions for — skip re-fetching them (huge speedup).
+    known = _known_urls(db)
+
     try:
+        idx = 0
         for kw in keywords:
+            idx += 1
             kw_clean = kw.strip()
             if not kw_clean:
                 continue
+            if on_progress:
+                try:
+                    on_progress(idx, kw_clean)
+                except Exception:
+                    pass
 
             logger.info(f"Scraping keyword: '{kw_clean}'")
             try:
                 all_jobs = await scrape_keyword(
                     kw_clean, location, max_per_portal,
-                    internshala=internshala, naukri=naukri,
+                    internshala=internshala, naukri=naukri, skip_urls=known,
                 )
                 stats = save_scraped_jobs(db, all_jobs)
             except Exception as e:
@@ -127,6 +150,7 @@ async def scrape_keyword(
     enrich: bool = True,
     internshala: Optional[InternshalaScraper] = None,
     naukri: Optional[NaukriScraper] = None,
+    skip_urls: Optional[set] = None,
 ) -> List[ScrapedJob]:
     """Scrapes one keyword across all portals and returns the combined raw list (no DB save).
 
@@ -136,8 +160,8 @@ async def scrape_keyword(
     internshala = internshala or InternshalaScraper()
     naukri = naukri or NaukriScraper()
 
-    ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
-    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich)
+    ishala_jobs = await internshala.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich, skip_urls=skip_urls)
+    naukri_jobs = await naukri.scrape(keyword=keyword, location=location, max_results=max_per_portal, enrich=enrich, skip_urls=skip_urls)
     return ishala_jobs + naukri_jobs
 
 

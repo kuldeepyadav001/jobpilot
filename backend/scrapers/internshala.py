@@ -20,7 +20,7 @@ class InternshalaScraper(BaseScraper):
         return None, None
 
     async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20,
-                     enrich: bool = True) -> List[ScrapedJob]:
+                     enrich: bool = True, skip_urls: Optional[set] = None) -> List[ScrapedJob]:
         jobs: List[ScrapedJob] = []
         cookie_string = os.getenv("INTERNSHALA_COOKIE", "")
         page = await self.ensure_page(cookie_string=cookie_string, domain=".internshala.com")
@@ -81,6 +81,14 @@ class InternshalaScraper(BaseScraper):
             logger.info(f"[Internshala] Scraped {len(jobs)} jobs from listing page")
 
             # --- ENRICH: Fetch full JD for each job ---
+            # Skip jobs we already have a description for (re-scrapes are common) to
+            # avoid re-fetching every detail page — the single biggest time sink.
+            if enrich and skip_urls:
+                skipped = sum(1 for j in jobs if j.url in skip_urls)
+                jobs = [j for j in jobs if j.url not in skip_urls]
+                if skipped:
+                    logger.info(f"[Internshala] Skipped enriching {skipped} jobs already in DB; "
+                                f"enriching {len(jobs)} new.")
             if enrich:
                 logger.info(f"[Internshala] Enriching {len(jobs)} jobs with full descriptions...")
             for job in jobs:

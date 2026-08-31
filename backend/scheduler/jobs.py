@@ -14,6 +14,7 @@ from models.resume import Resume
 from models.company import Company
 from models.analytics import AnalyticsSnapshot
 from engine.application_service import can_apply_today
+from scheduler.run_state import set_step, heartbeat, finish_run
 
 def select_apply_targets(db: Session, threshold: int, target_count: int, min_salary: int = 0) -> list[Job]:
     """Returns the top-N non-applied, non-blacklisted, scored jobs for applying.
@@ -129,16 +130,21 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
             kw_list = ["python developer"]
 
         # STEP 1: Scrape Jobs for all keywords
+        set_step(f"Scraping {len(kw_list)} keywords on Internshala + Naukri…")
         logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list} "
                     f"(location={settings.search_location}, max_per_portal={settings.max_per_portal})...")
         scrape_stats = await run_all_scrapers(
             db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
+            on_progress=lambda i, k: set_step(f"Scraping keyword {i}/{len(kw_list)}: {k}"),
         )
+        set_step("Scraping done — saving jobs…")
         logger.info(f"[Pipeline] Scraped jobs statistics: {scrape_stats}")
 
         # STEP 2: Score Jobs
+        set_step("Scoring jobs against your resumes…")
         logger.info("[Pipeline] Step 2/5: Scoring new listings...")
         scored_count = score_unmatched_jobs(db)
+        set_step(f"Scored {scored_count} jobs.")
         logger.info(f"[Pipeline] Scored {scored_count} new listings.")
 
         # STEP 3: Auto-Apply Engine (with Smart Routing + Rate Limiting)
@@ -146,13 +152,17 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
         if not apply:
             logger.info("[Pipeline] Step 3/5: APPLY GATE — automatic run does not apply. Skipping apply step.")
         else:
+            set_step("Applying to matched jobs…")
             await _run_apply_step(db)
         # STEP 4: Scan Recruiter Response Emails
-        logger.info("[Pipeline] Step 4/5: Syncing recruiter email responses via IMAP...")
+        set_step("Syncing recruiter email responses…")
+        logger.info("[Pipeline] Step 4/5: Scanning recruiter response emails via IMAP...")
         email_count = scan_inbox(db, max_emails=10)
+        set_step(f"Scanned {email_count} emails.")
         logger.info(f"[Pipeline] Scanned {email_count} emails.")
 
         # STEP 5: Record Daily Snapshot
+        set_step("Saving daily analytics snapshot…")
         logger.info("[Pipeline] Step 5/5: Generating daily progress analytics snapshot...")
         today = date.today()
         from models.application import Application
@@ -164,16 +174,18 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
         if not snapshot:
             snapshot = AnalyticsSnapshot(date=today)
             db.add(snapshot)
-        
+
         snapshot.total_applied = total_applied
         snapshot.total_responses = total_interviews + total_rejected
         snapshot.total_interviews = total_interviews
         db.commit()
         logger.info("[Pipeline] Snapshot successfully updated.")
+        heartbeat()
 
     except Exception as e:
         logger.exception(f"[Pipeline] Fatal error during automation cycle: {e}")
         db.rollback()
+        finish_run("error", f"Pipeline failed: {type(e).__name__}: {e}")
     finally:
         db.close()
         logger.info("[Pipeline] Pipeline cycle completed.")

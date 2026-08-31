@@ -21,7 +21,7 @@ from models.application import Application
 from models.response import Response
 from models.resume import Resume
 from scheduler.scheduler import scheduler
-from api.routes.pipeline import _run_state
+from scheduler.run_state import get_run_state
 
 router = APIRouter(prefix="/system", tags=["System"])
 
@@ -84,11 +84,12 @@ async def system_health(db: Session = Depends(get_db)):
         detail=f"APScheduler {'running' if sched_running else 'not running'} (every {settings.scheduler_interval_hours}h)",
     )
 
+    _ps = get_run_state()
     pipeline_status = ComponentStatus(
-        ok=not _run_state["running"],
+        ok=not _ps["running"],
         detail=(
-            f"{_run_state['status']}: {_run_state['message']}"
-            if _run_state.get("started_at")
+            f"{_ps['status']}: {_ps['message']}"
+            if _ps.get("started_at")
             else "No manual run yet this process"
         ),
     )

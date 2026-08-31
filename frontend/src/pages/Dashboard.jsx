@@ -68,6 +68,11 @@ export default function Dashboard() {
             className="mt-6 inline-flex items-center gap-2 bg-white text-violet-600 px-6 py-2.5 rounded-full font-bold text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-60 disabled:cursor-not-allowed">
             {isRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Running Pipeline…</> : <><Play className="w-4 h-4" /> Trigger Pipeline</>}
           </button>
+          {isRunning && runStatus?.step && (
+            <p className="mt-3 text-[13px] font-medium text-white/90 inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" /> {runStatus.step}
+            </p>
+          )}
         </div>
         <div className="absolute -right-10 -top-20 w-72 h-72 bg-white opacity-10 rounded-full blur-2xl"></div>
         <div className="absolute right-24 -bottom-10 w-40 h-40 bg-teal-300 opacity-30 rounded-full blur-xl"></div>
@@ -125,7 +130,7 @@ export default function Dashboard() {
                 <span className={`w-2 h-2 rounded-full ${isRunning ? 'bg-blue-500' : 'bg-success'} animate-pulse`}></span>
                 <span className="text-sm font-bold text-ink">Pipeline</span>
               </div>
-              <span className="text-xs font-semibold text-ink-faint">{isRunning ? 'Running…' : 'Idle'}</span>
+              <span className="text-xs font-semibold text-ink-faint">{isRunning ? (runStatus?.step || 'Running…') : 'Idle'}</span>
             </div>
             <div className="flex items-center justify-between p-4 bg-surface2 rounded-2xl">
               <div className="flex items-center gap-3">
