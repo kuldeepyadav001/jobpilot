@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date
 from sqlalchemy.orm import Session
 from loguru import logger
@@ -83,13 +84,23 @@ async def _run_apply_step(db: Session):
                     f"| Best resume: '{best_resume.name}' (score {best_score:.2f})")
         cover_letter = await generate_cover_letter_for_job(db, job, best_resume)
 
-        await execute_job_application(
-            db=db,
-            job_id=job.id,
-            resume_id=best_resume.id,
-            cover_letter=cover_letter,
-            method="auto"  # Smart routing decides email/portal/manual
-        )
+        # Time-box each application so one hung browser/page (bad cookie, infinite
+        # reCAPTCHA, slow portal) can never stall the whole pipeline.
+        try:
+            await asyncio.wait_for(
+                execute_job_application(
+                    db=db,
+                    job_id=job.id,
+                    resume_id=best_resume.id,
+                    cover_letter=cover_letter,
+                    method="auto",  # Smart routing decides email/portal/manual
+                ),
+                timeout=90,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"[Pipeline] Apply to '{job.title}' exceeded 90s — moved on to next job.")
+        except Exception as e:
+            logger.error(f"[Pipeline] Apply to '{job.title}' errored (isolated): {e}")
 
 
 async def generate_cover_letter_for_job(db: Session, job: Job, resume: Resume) -> str:
@@ -140,12 +151,21 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
         # Internshala + Freshersworld each run per-job_type × keyword; Naukri runs per
         # keyword but is skipped when internships-only.
         total_steps = (2 * max(1, len(job_types)) * len(kw_list)) + (0 if _is_internships_only(job_types) else len(naukri_kws))
-        scrape_stats = await run_all_scrapers(
-            db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
-            on_progress=lambda i, k: set_step(f"Scraping {i}/{total_steps}: {k}"),
-            job_types=job_types,
-            naukri_keywords=naukri_kws,
-        )
+        # Time-box the whole scrape so a single unresponsive portal page (bad cookie,
+        # heavy JS) can never stall the pipeline indefinitely.
+        try:
+            scrape_stats = await asyncio.wait_for(
+                run_all_scrapers(
+                    db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
+                    on_progress=lambda i, k: set_step(f"Scraping {i}/{total_steps}: {k}"),
+                    job_types=job_types,
+                    naukri_keywords=naukri_kws,
+                ),
+                timeout=600,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("[Pipeline] Scrape step exceeded 10 min — proceeding with whatever was saved.")
+            scrape_stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
         set_step("Scraping done — saving jobs…")
         logger.info(f"[Pipeline] Scraped jobs statistics: {scrape_stats}")
 

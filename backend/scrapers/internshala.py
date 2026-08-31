@@ -21,21 +21,27 @@ class InternshalaScraper(BaseScraper):
         return None, None
 
     def _search_url(self, keyword: str, job_type: str, location: str) -> str:
-        """Build the correct Internshala search URL for jobs vs internships.
+        """Build the CORRECT Internshala search URL for jobs vs internships.
 
-        Internshala has two SEPARATE sections:
-          - Internships: /internships/{kw}-internships   (monthly stipend)
-          - Jobs:        /jobs/{kw}-jobs                 (annual salary)
+        Internshala has two SEPARATE sections, and each honours a keyword only via
+        the `keywords-<term>` route:
+          - Internships: /internships/keywords-{kw}/   (monthly stipend)
+          - Jobs:        /jobs/keywords-{kw}/          (annual salary)
+
+        IMPORTANT: the older `/internships/{kw}-internships` form silently 302s to
+        the generic `/internships/` page (ALL internships — finance, marketing, ...)
+        and DROPS the keyword, so it returned the wrong listings. Never append a
+        `-in-{loc}` suffix either — it also breaks the keyword filter.
         """
         kw = keyword.strip().lower().replace(" ", "-")
         if job_type == "internship":
-            url = f"{self.BASE_URL}/internships/{kw}-internships"
+            url = f"{self.BASE_URL}/internships/keywords-{kw}"
         else:
-            url = f"{self.BASE_URL}/jobs/{kw}-jobs"
-        if location:
-            loc = location.strip().lower().replace(" ", "-")
-            url += f"-in-{loc}"
-        return url
+            url = f"{self.BASE_URL}/jobs/keywords-{kw}"
+        # `location` is intentionally NOT added to the path: the -in-{loc} suffix
+        # disables the keyword filter on Internshala. Location is still captured
+        # per-job from the card itself, and can be filtered later in-app.
+        return url + "/"
 
     async def scrape(self, keyword: str, location: Optional[str] = None, max_results: int = 20,
                      enrich: bool = True, skip_urls: Optional[set] = None,

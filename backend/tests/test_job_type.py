@@ -29,10 +29,13 @@ def test_missing_title_defaults_to_job():
 
 def test_search_url_routes_to_correct_section():
     s = InternshalaScraper()
-    assert "internships/python-developer-internships" in s._search_url("python developer", "internship", "")
-    assert "jobs/python-developer-jobs" in s._search_url("python developer", "job", "")
-    # Location appends correctly.
-    assert "jobs/java-developer-jobs-in-remote" in s._search_url("java developer", "job", "remote")
+    # Must use the `keywords-<term>` route (the -internships form silently redirects
+    # to the generic /internships/ page and DROPS the keyword -> wrong listings).
+    assert "internships/keywords-python-developer" in s._search_url("python developer", "internship", "")
+    assert "jobs/keywords-python-developer" in s._search_url("python developer", "job", "")
+    # Location must NOT be appended (it disables the keyword filter).
+    u = s._search_url("java developer", "job", "remote")
+    assert "keywords-java-developer" in u and "-in-remote" not in u
 
 
 def test_internships_only_skips_naukri():

@@ -1,4 +1,5 @@
 import os
+from contextlib import suppress
 from typing import Optional, Tuple
 from loguru import logger
 from scrapers.base import BaseBrowser
@@ -204,39 +205,70 @@ class PlaywrightApplyEngine(BaseBrowser):
 
             await apply_btn.click()
             await page.wait_for_timeout(3000)
+            logger.info(f"[Portal Apply] After clicking apply, now at: {page.url}")
 
-            # Internshala's apply is often 2 steps: a modal then Submit. Fill the
-            # 'why should you be hired' box, then press the submit/continue button.
-            textareas = await page.query_selector_all("textarea")
-            for area in textareas:
-                placeholder = await area.get_attribute("placeholder") or ""
-                label = await area.inner_text() or ""
-                if "why should you be hired" in label.lower() or "cover letter" in placeholder.lower() or len(textareas) == 1:
-                    try:
-                        await area.fill(cover_letter)
-                    except Exception:
-                        pass
-                    break
+            # The interstitial application form usually shows a job summary then a
+            # form (this is the step the user described: "it shows a form with job
+            # confirmation and all, you have to click again"). It can be one page or
+            # a continue->confirm->submit sequence. We handle both by looping until a
+            # real submit is available or a step transitions.
+            for _step in range(4):
+                # Fill the cover-letter 'why should you be hired' box.
+                textareas = await page.query_selector_all("textarea")
+                for area in textareas:
+                    placeholder = (await area.get_attribute("placeholder")) or ""
+                    label = (await area.inner_text()) or ""
+                    if "why should you be hired" in label.lower() or "cover letter" in placeholder.lower() or len(textareas) == 1:
+                        try:
+                            await area.fill(cover_letter)
+                        except Exception:
+                            pass
+                        break
 
-            submit_btn = await page.query_selector("input[type='submit'], button[type='submit'], #submit")
-            if not submit_btn:
-                logger.warning("[Portal Apply] No submit button found. Flagging for manual.")
-                return "needs_manual_action"
+                # Tick any required 'I accept / I agree' checkboxes so submit is allowed.
+                checks = await page.query_selector_all(
+                    "input[type='checkbox']:not(:checked), input[type='radio']"
+                )
+                with suppress(Exception):
+                    for c in checks[:12]:
+                        try:
+                            await c.check(timeout=1500)
+                        except Exception:
+                            pass
 
-            # APPLY GATE: in real mode actually submit + verify; in dry-run just report.
-            if settings.apply_mode == "real":
+                # APPLY GATE: in dry-run, reach the confirmation form but do NOT hit
+                # the final submit (never falsely mark applied).
+                if settings.apply_mode != "real":
+                    logger.info("[Portal Apply] DRY_RUN: stopped before final submit. "
+                                "Set APPLY_MODE=real to submit for real.")
+                    return "needs_manual_action"
+
+                # Look for the real submit/continue on this step. Internshala's final
+                # action is often a button labelled Submit/Apply, or a Continue/Next
+                # between confirmation pages.
+                submit_btn = await page.query_selector(
+                    "input[type='submit'], button[type='submit'], #submit, "
+                    "button:has-text('Submit Application'), button:has-text('Submit'), "
+                    "button:has-text('Apply'), a:has-text('Continue'), "
+                    "button:has-text('Continue'), button:has-text('Confirm')"
+                )
+                if not submit_btn:
+                    logger.warning(f"[Portal Apply] Step {_step}: no submit/continue button "
+                                   f"(url={page.url}). Flagging for manual.")
+                    return "needs_manual_action"
+                url_before = page.url
                 await submit_btn.click()
-                await page.wait_for_timeout(4000)
+                await page.wait_for_timeout(3500)
+                logger.info(f"[Portal Apply] Step {_step} clicked submit/continue; now at: {page.url}")
                 if await self._confirmed_applied(page):
                     logger.info(f"[Portal Apply] Submission CONFIRMED for {job_url}")
                     return "applied"
-                logger.warning(f"[Portal Apply] Clicked submit but could NOT confirm success for {job_url}. "
-                               "Flagging for manual action (not marking applied).")
-                return "needs_manual_action"
-            else:
-                logger.info("[Portal Apply] DRY_RUN: skipped final submit. Set APPLY_MODE=real to submit for real.")
-                # Honestly report that we did NOT submit, so it's never mistaken for applied.
-                return "needs_manual_action"
+                # If the page didn't transition after the click, looping would just
+                # re-click the same button (risking a double submit); stop here.
+                if page.url == url_before:
+                    logger.warning(f"[Portal Apply] Page did not advance after click "
+                                   f"(url={page.url}). Stopping this attempt (manual review).")
+                    return "needs_manual_action"
 
         except Exception as e:
             logger.error(f"[Portal Apply] Error: {e}")
