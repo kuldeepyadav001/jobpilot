@@ -68,8 +68,9 @@ async def _run_apply_step(db: Session):
                 f"min_salary={settings.min_salary}).")
     for job in qualified_jobs:
         if not can_apply_today(db, job.portal):
-            logger.info(f"[Pipeline] Rate limit reached for {job.portal}. Stopping apply loop.")
-            break
+            logger.info(f"[Pipeline] Daily cap reached for {job.portal}. Skipping this job "
+                        f"(other portals can still apply).")
+            continue
 
         # Pick the single BEST resume for THIS job (auto-pick best resume).
         jd_text = f"{job.title} {job.description or ''}"

@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     # APPLY GATE (how "one click, everything done" behaves)
     #   apply_mode = 'real'     -> manual run REALLY submits applications (email/portal)
     #   apply_mode = 'dry_run'  -> manual run does everything EXCEPT the final submit (safe)
+    #   IMPORTANT: the "shown as Applied but not actually on the portal" symptom is
+    #   exactly because this is left at 'dry_run' — set to 'real' to truly submit.
     apply_mode: str = "dry_run"
     #   auto_apply = true       -> the scheduled 6-hourly run ALSO submits applications
     #   auto_apply = false      -> scheduled run only scrapes+serves+scores+scans; never applies.
@@ -45,8 +47,13 @@ class Settings(BaseSettings):
         "frontend developer, react developer, machine learning, ai engineer, "
         "devops engineer, cloud engineer"
     )
-    # How many highest-scoring jobs to target per apply cycle.
+    # How many highest-scoring jobs to target per apply cycle. Raise this to
+    # MAXIMISE applications (a student can't afford to be choosy). Capped each day
+    # by daily_apply_cap per portal.
     apply_target_count: int = 10
+    # Max REAL applications per portal per day (rate-limit safety). Raise to apply
+    # to more jobs; keep high enough that the daily cap never throttles you.
+    daily_apply_cap: int = 25
     # Where to scrape (used by the pipeline; overrides the old hardcoded "remote").
     search_location: str = "remote"
     # How many cards to pull per portal per keyword in one scrape cycle.

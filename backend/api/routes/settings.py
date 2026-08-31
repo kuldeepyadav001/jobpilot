@@ -19,6 +19,8 @@ class AppSettings(BaseModel):
     candidate_name: str
     job_cleanup_enabled: bool
     job_retention_days: int
+    apply_target_count: int  # top-scoring jobs targeted per cycle
+    daily_apply_cap: int     # max real sends per portal per day
 
 
 @router.get("/app", response_model=AppSettings)
@@ -30,6 +32,8 @@ def app_settings():
         candidate_name=settings.candidate_name,
         job_cleanup_enabled=settings.job_cleanup_enabled,
         job_retention_days=settings.job_retention_days,
+        apply_target_count=settings.apply_target_count,
+        daily_apply_cap=settings.daily_apply_cap,
     )
 
 

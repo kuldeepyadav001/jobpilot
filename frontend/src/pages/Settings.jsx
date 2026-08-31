@@ -73,12 +73,14 @@ export default function Settings() {
           <p className="text-xs text-ink-soft mt-1">
             Click once and it does everything automatically: scrape Internshala + Naukri → score against your resumes → pick the best resume → generate a cover letter → apply → scan responses → update statuses.
           </p>
-          <div className="mt-2 inline-flex items-center gap-2">
+          <div className="mt-2 inline-flex items-center gap-2 flex-wrap">
             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${isRealMode ? 'bg-success/20 text-success' : 'bg-warn/20 text-warn'}`}>
               {appCfg ? (isRealMode ? 'Ready to apply for real' : 'Dry-run: won\u2019t submit') : '…'}
             </span>
             <span className="text-[10px] text-ink-faint">
-              {isRealMode ? 'Applications will be sent to employers.' : 'Set APPLY_MODE=real in .env to send for real.'}
+              {isRealMode
+                ? `Will send up to ${appCfg?.apply_target_count ?? 10} jobs this run (${appCfg?.daily_apply_cap ?? 25}/day/portal).`
+                : 'Set APPLY_MODE=real in .env to ACTUALLY submit. Right now it only marks jobs as Applied in the dashboard without sending them.'}
             </span>
           </div>
         </div>

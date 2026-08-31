@@ -10,9 +10,10 @@ from models.application import Application
 from models.status_history import StatusHistory
 from models.apply_log import ApplyLog
 from engine.email_sender import send_job_application_email
+from core.config import settings
 
-# Daily apply cap per portal
-MAX_DAILY_APPLIES = 10
+# Daily real-apply cap per portal (config-driven so you can raise it to apply more).
+MAX_DAILY_APPLIES = settings.daily_apply_cap
 
 
 def log_status_change(db: Session, app_id: int, old: str, new: str, trigger_type: str = "auto"):
