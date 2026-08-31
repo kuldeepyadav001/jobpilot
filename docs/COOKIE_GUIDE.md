@@ -65,11 +65,18 @@ exporter, which reads the browser's *entire* cookie jar automatically:
 
 ## Notes for Naukri specifically
 
-- **Naukri auto-apply is NOT built yet.** Even with a valid cookie, Naukri jobs are
-  currently routed to **"Needs Action"** for you to apply manually. The cookie is
-  still worth keeping valid so we're ready when Naukri apply is added, and so
-  scraping reliably works long-term.
-- Internshala is the portal that actually auto-applies today.
+- **Naukri auto-apply is built** (`apply_to_naukri`). It only reports **"Applied"**
+  when the portal confirms a real submission. Jobs that need a completed profile,
+  hit a reCAPTCHA, or redirect to an external/LinkedIn apply page are honestly
+  marked **"Needs Action"** — it never fakes a success.
+- Internshala is the easiest portal to auto-apply on.
+
+## Freshersworld (no cookie needed)
+
+Freshersworld is scraped in **guest mode** — you don't need to log in to read its
+job/internship listings. There's no `FRESHERWORLD_COOKIE` to set. (For now its
+applications are routed to **"Needs Action"** since it has no stable in-portal
+auto-submit.)
 
 ## Keep in mind
 - Cookies **expire** — refresh them periodically (set a reminder every ~2 weeks).

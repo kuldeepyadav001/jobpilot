@@ -52,3 +52,30 @@ def test_section_is_authoritative_over_title():
     assert _resolve_job_type("naukri", "job", "Backend Developer") == "job"
     # A jobs-section Internshala posting that isn't titled 'intern' -> job.
     assert _resolve_job_type("internshala", "job", "Senior Python Developer") == "job"
+
+
+def test_freshersworld_search_url_targets():
+    from scrapers.freshersworld import FreshersworldScraper
+    s = FreshersworldScraper()
+    u = s._search_url("python developer", "internship", "")
+    assert "searchText=python+developer" in u
+    assert "searchTarget=Internship" in u
+    u2 = s._search_url("java developer", "job", "bangalore")
+    assert "searchTarget=jobs" in u2
+    assert "location=bangalore" in u2
+
+
+def test_freshersworld_detail_link_detection():
+    from scrapers.freshersworld import FreshersworldScraper
+    s = FreshersworldScraper()
+    assert s._is_detail_link("https://www.freshersworld.com/jobs/abc-software-engineer-job-12345")
+    assert s._is_detail_link("/jobs/data-analyst-internship-999")
+    assert not s._is_detail_link("https://www.freshersworld.com/jobs")
+    assert not s._is_detail_link("https://www.freshersworld.com/jobs/category/it-software-job-vacancies")
+
+
+def test_registry_includes_all_portals():
+    from scrapers.registry import scraper_ids, build_scraper
+    ids = scraper_ids()
+    assert "internshala" in ids and "naukri" in ids and "freshersworld" in ids
+    assert build_scraper("freshersworld").portal == "freshersworld"

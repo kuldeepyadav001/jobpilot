@@ -131,14 +131,15 @@ async def run_daily_automation_pipeline(apply: bool | None = None):
             kw_list = ["python developer"]
 
         # STEP 1: Scrape Jobs for all keywords
-        set_step(f"Scraping {len(kw_list)} keywords on Internshala + Naukri…")
+        set_step(f"Scraping {len(kw_list)} keywords on Internshala + Naukri + Freshersworld…")
         logger.info(f"[Pipeline] Step 1/5: Running scrapers for keywords {kw_list} "
                     f"(location={settings.search_location}, max_per_portal={settings.max_per_portal})...")
         # Respect the jobs-only / internships-only choice (Scrape Types) + per-portal keywords.
         job_types = [t.strip() for t in settings.scrape_types.split(",") if t.strip()]
         naukri_kws = [k.strip() for k in settings.naukri_keywords.split(",") if k.strip()] or kw_list
-        # When internships-only, Naukri is skipped, so it doesn't contribute steps.
-        total_steps = (max(1, len(job_types)) * len(kw_list)) + (0 if _is_internships_only(job_types) else len(naukri_kws))
+        # Internshala + Freshersworld each run per-job_type × keyword; Naukri runs per
+        # keyword but is skipped when internships-only.
+        total_steps = (2 * max(1, len(job_types)) * len(kw_list)) + (0 if _is_internships_only(job_types) else len(naukri_kws))
         scrape_stats = await run_all_scrapers(
             db, keywords=kw_list, location=settings.search_location, max_per_portal=settings.max_per_portal,
             on_progress=lambda i, k: set_step(f"Scraping {i}/{total_steps}: {k}"),

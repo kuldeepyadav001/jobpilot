@@ -67,6 +67,7 @@ export default function Feed() {
             <option value="">All Portals</option>
             <option value="internshala">Internshala</option>
             <option value="naukri">Naukri</option>
+            <option value="freshersworld">Freshersworld</option>
           </select>
           <select value={minScore} onChange={e => { setMinScore(e.target.value); setPage(1) }} className="input cursor-pointer">
             <option value="">All Match Scores</option>
@@ -103,7 +104,7 @@ export default function Feed() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex gap-4 min-w-0">
                     <div className="w-12 h-12 bg-brand-soft rounded-xl flex items-center justify-center shrink-0">
-                      <span className="text-xs font-black uppercase text-brand tracking-wider">{job.portal === 'internshala' ? 'IS' : 'NK'}</span>
+                      <span className="text-xs font-black uppercase text-brand tracking-wider">{({ internshala: 'IS', naukri: 'NK', freshersworld: 'FW' })[job.portal] ?? 'JO'}</span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">

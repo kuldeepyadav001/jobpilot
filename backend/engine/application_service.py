@@ -153,7 +153,12 @@ async def execute_job_application(
             engine = PlaywrightApplyEngine(headless=True)
             final_status = await engine.apply_to_naukri(job.url, cover_letter)
         else:
-            logger.warning(f"[Apply Service] Portal '{job.portal}' automation not yet supported.")
+            # Freshersworld & other scraped portals: they have no stable in-portal
+            # Easy Apply we can auto-submit, so never pretend. Applications on these
+            # go through the email/external route; if a portal button is detected
+            # without a supported auto-submit path, hand off honestly.
+            logger.info(f"[Apply Service] Portal '{job.portal}' has no supported auto-submit; "
+                        f"routing to manual action (never falsely applied).")
             final_status = "needs_manual_action"
 
     # --- COMMIT STATE ---

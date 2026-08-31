@@ -7,6 +7,8 @@ from models.job import Job
 from scrapers.base import ScrapedJob
 from scrapers.internshala import InternshalaScraper
 from scrapers.naukri import NaukriScraper
+from scrapers.registry import build_scraper, scraper_ids
+from scrapers.freshersworld import FreshersworldScraper
 
 _JOB_TYPE_WORDS = re.compile(r"\b(internship|intern|trainee|apprentice|co-op|coop)\b", re.IGNORECASE)
 
@@ -141,8 +143,10 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
     # Launch the browsers once; reuse them across the whole cycle.
     internshala = InternshalaScraper()
     naukri = NaukriScraper()
+    freshersworld = FreshersworldScraper()
     internshala.close_browser_on_scrape = False
     naukri.close_browser_on_scrape = False
+    freshersworld.close_browser_on_scrape = False
 
     # Jobs we already have descriptions for — skip re-fetching them (huge speedup).
     known = _known_urls(db)
@@ -195,9 +199,32 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                     total_stats[key] += stats.get(key, 0)
         else:
             logger.info("[Scraper] Internships-only mode: skipping Naukri (jobs only).")
+
+        # --- Freshersworld (supports jobs AND internships; uses broad keywords) ---
+        for jt in job_types:
+            for kw in internshala_kws:
+                counter += 1
+                if on_progress:
+                    try:
+                        on_progress(counter, f"Freshersworld {jt.rstrip('s')}: {kw}")
+                    except Exception:
+                        pass
+                logger.info(f"Scraping Freshersworld '{kw}' ({jt})")
+                try:
+                    stats = save_scraped_jobs(db, await freshersworld.scrape(
+                        keyword=kw, location=location, max_results=max_per_portal,
+                        enrich=True, skip_urls=known,
+                        job_type="internship" if jt == "internships" else "job",
+                    ))
+                except Exception as e:
+                    logger.error(f"[Scraper] Freshersworld '{kw}' ({jt}) failed (isolated): {e}")
+                    stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
+                for key in total_stats:
+                    total_stats[key] += stats.get(key, 0)
     finally:
         await internshala.close()
         await naukri.close()
+        await freshersworld.close()
 
     logger.info(f"Completed multi-keyword scraper run. Aggregated stats: {total_stats}")
     return total_stats
@@ -237,18 +264,17 @@ async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal:
     per-portal/per-keyword results. Used to verify scrapers work against the live
     portals before trusting the real pipeline."""
     results = []
-    # Reuse one browser per portal across all keywords, then close once.
-    internshala = InternshalaScraper()
-    naukri = NaukriScraper()
-    internshala.close_browser_on_scrape = False
-    naukri.close_browser_on_scrape = False
+    # Use the registry so every registered portal is covered automatically.
+    scrapers = {pid: build_scraper(pid) for pid in scraper_ids()}
+    for s in scrapers.values():
+        s.close_browser_on_scrape = False
     try:
         for kw in keywords:
             kw_clean = kw.strip()
             if not kw_clean:
                 continue
             entry = {"keyword": kw_clean, "total": 0, "by_portal": {}, "sample": [], "errors": []}
-            for portal_name, scraper in (("internshala", internshala), ("naukri", naukri)):
+            for portal_name, scraper in scrapers.items():
                 try:
                     jobs = await scraper.scrape(keyword=kw_clean, location=location, max_results=max_per_portal, enrich=False)
                     entry["total"] += len(jobs)
@@ -259,6 +285,6 @@ async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal:
                     entry["errors"].append(f"{portal_name}: {type(e).__name__}: {e}")
             results.append(entry)
     finally:
-        await internshala.close()
-        await naukri.close()
+        for s in scrapers.values():
+            await s.close()
     return {"results": results, "keywords": keywords, "location": location, "max_per_portal": max_per_portal}
