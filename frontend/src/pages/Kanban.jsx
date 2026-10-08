@@ -5,21 +5,21 @@ import { fetchApplications, updateAppStatus, updateAppNotes } from '../api/clien
 import { Search, X, Save, ExternalLink, Check, LayoutGrid } from 'lucide-react'
 
 const ALL_COLUMNS = [
-  { id: 'applied', title: 'Applied', color: 'border-blue-500', accent: 'text-blue-600' },
-  { id: 'viewed', title: 'Viewed', color: 'border-yellow-500', accent: 'text-yellow-600' },
-  { id: 'responded', title: 'Responded', color: 'border-purple-500', accent: 'text-purple-600' },
-  { id: 'interview', title: 'Interview', color: 'border-green-500', accent: 'text-green-600' },
-  { id: 'offer', title: 'Offer', color: 'border-emerald-400', accent: 'text-emerald-600' },
-  { id: 'rejected', title: 'Rejected', color: 'border-red-500', accent: 'text-red-600' },
-  { id: 'pending', title: 'Pending', color: 'border-slate-400', accent: 'text-slate-600' },
-  { id: 'needs_manual_action', title: 'Needs Action', color: 'border-orange-500', accent: 'text-orange-600' },
-  { id: 'failed', title: 'Failed', color: 'border-rose-500', accent: 'text-rose-600' },
+  { id: 'applied', title: 'Applied', color: 'border-brand', accent: 'text-brand' },
+  { id: 'viewed', title: 'Viewed', color: 'border-info', accent: 'text-info' },
+  { id: 'responded', title: 'Responded', color: 'border-info', accent: 'text-info' },
+  { id: 'interview', title: 'Interview', color: 'border-success', accent: 'text-success' },
+  { id: 'offer', title: 'Offer', color: 'border-success', accent: 'text-success' },
+  { id: 'rejected', title: 'Rejected', color: 'border-danger', accent: 'text-danger' },
+  { id: 'pending', title: 'Pending', color: 'border-line-strong', accent: 'text-ink-soft' },
+  { id: 'needs_manual_action', title: 'Needs Action', color: 'border-warn', accent: 'text-warn' },
+  { id: 'failed', title: 'Failed', color: 'border-danger', accent: 'text-danger' },
 ]
 
 const STATUS_ACCENT = {
-  applied: 'border-blue-400', viewed: 'border-yellow-400', responded: 'border-purple-400',
-  interview: 'border-green-400', offer: 'border-emerald-400', rejected: 'border-red-400',
-  pending: 'border-slate-300', needs_manual_action: 'border-orange-400', failed: 'border-rose-400',
+  applied: 'border-brand', viewed: 'border-info', responded: 'border-info',
+  interview: 'border-success', offer: 'border-success', rejected: 'border-danger',
+  pending: 'border-line-strong', needs_manual_action: 'border-warn', failed: 'border-danger',
 }
 
 // Default visible columns (you can toggle any off in the 'Columns' menu).
@@ -149,7 +149,7 @@ export default function Kanban() {
                               className={`bg-surface border ${STATUS_ACCENT[app.status] || 'border-line'} rounded-lg p-3 text-xs shadow-sm hover:border-brand transition cursor-pointer group ${snapshot.isDragging ? 'shadow-lg border-brand' : ''}`}>
                               <div className="flex items-start justify-between gap-1 mb-1">
                                 <p className="font-bold text-ink line-clamp-1">
-                                  <span className={`inline-block align-middle mr-1.5 text-[9px] font-black px-1.5 py-0.5 rounded ${app.job_type === 'internship' ? 'bg-warn/15 text-warn' : 'bg-blue-50 text-blue-600'}`} title={app.job_type === 'internship' ? 'Internship' : 'Job'}>{app.job_type === 'internship' ? 'I' : 'J'}</span>
+                                  <span className={`inline-block align-middle mr-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded ${app.job_type === 'internship' ? 'bg-warn-soft text-warn' : 'bg-brand-soft text-brand-strong'}`} title={app.job_type === 'internship' ? 'Internship' : 'Job'}>{app.job_type === 'internship' ? 'I' : 'J'}</span>
                                   {app.job_title}
                                 </p>
                                 {app.job_url && (

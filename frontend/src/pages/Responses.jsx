@@ -3,10 +3,10 @@ import { fetchResponses, triggerEmailScan } from '../api/client'
 import { RefreshCw, Mail, ExternalLink } from 'lucide-react'
 
 const TYPE_STYLES = {
-  interview: 'bg-success text-white',
-  rejection: 'bg-danger text-white',
-  seen: 'bg-warn text-white',
-  follow_up: 'bg-purple-600 text-white',
+  interview: 'bg-success-soft text-success',
+  rejection: 'bg-danger-soft text-danger',
+  seen: 'bg-warn-soft text-warn',
+  follow_up: 'bg-brand-soft text-brand-strong',
 }
 
 export default function Responses() {

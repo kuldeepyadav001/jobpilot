@@ -7,7 +7,7 @@ import { Search, ExternalLink, CheckCircle, ChevronDown, ChevronUp, MapPin, Buil
 function ScoreBadge({ score }) {
   if (score == null) return <span className="text-xs text-ink-faint bg-surface2 px-2 py-1 rounded-md font-semibold">N/A</span>
   const color = score >= 40 ? 'bg-success/10 text-success border-success/30' : score >= 20 ? 'bg-warn/10 text-warn border-warn/30' : 'bg-danger/10 text-danger border-danger/30'
-  return <span className={`text-xs px-2.5 py-1 rounded-lg border font-black flex items-center gap-1 ${color}`}>
+  return <span className={`text-xs px-2.5 py-1 rounded-md border font-bold flex items-center gap-1 ${color}`}>
     <span>{score}%</span><span className="text-[10px] font-semibold opacity-75">match</span>
   </span>
 }
@@ -41,7 +41,7 @@ export default function Feed() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-black text-ink tracking-tight">Job Feed</h2>
+          <h2 className="text-2xl font-bold text-ink tracking-tight">Job Feed</h2>
           <p className="text-xs font-semibold text-ink-faint mt-0.5">
             {data?.total ? `${data.total} total jobs discovered across all portals` : 'Browse and inspect scraped opportunities'}
           </p>
@@ -58,7 +58,7 @@ export default function Feed() {
           <div className="inline-flex items-center gap-1 bg-surface2 border border-line rounded-lg p-1">
             {[['all', 'All'], ['job', 'Jobs'], ['internship', 'Internships']].map(([val, label]) => (
               <button key={val} onClick={() => { setJobType(val); setPage(1) }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition ${jobType === val ? 'bg-brand text-white shadow' : 'text-ink-faint hover:text-ink'}`}>
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${jobType === val ? 'bg-brand text-white' : 'text-ink-faint hover:text-ink'}`}>
                 {label}
               </button>
             ))}
@@ -100,16 +100,16 @@ export default function Feed() {
           {data.jobs.map(job => {
             const isExpanded = expandedJobId === job.id
             return (
-              <div key={job.id} className="card p-6 hover:shadow-lg hover:-translate-y-0.5 hover:border-brand/40 transition-all duration-200">
+              <div key={job.id} className="card p-6 hover:border-line-strong transition-colors">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex gap-4 min-w-0">
-                    <div className="w-12 h-12 bg-brand-soft rounded-xl flex items-center justify-center shrink-0">
-                      <span className="text-xs font-black uppercase text-brand tracking-wider">{({ internshala: 'IS', naukri: 'NK', freshersworld: 'FW' })[job.portal] ?? 'JO'}</span>
+                    <div className="w-12 h-12 bg-brand-soft rounded-lg flex items-center justify-center shrink-0">
+                      <span className="num text-xs font-bold uppercase text-brand tracking-wider">{({ internshala: 'IS', naukri: 'NK', freshersworld: 'FW' })[job.portal] ?? 'JO'}</span>
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <ScoreBadge score={job.match_score} />
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded ${job.job_type === 'internship' ? 'bg-warn/15 text-warn' : 'bg-blue-50 text-blue-600'}`} title={job.job_type === 'internship' ? 'Internship' : 'Job'}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${job.job_type === 'internship' ? 'bg-warn-soft text-warn' : 'bg-brand-soft text-brand-strong'}`} title={job.job_type === 'internship' ? 'Internship' : 'Job'}>
                           {job.job_type === 'internship' ? 'I' : 'J'}
                         </span>
                         <span className="text-[10px] uppercase font-bold text-ink-faint bg-surface2 px-2 py-0.5 rounded">{job.portal}</span>

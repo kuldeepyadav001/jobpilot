@@ -26,10 +26,10 @@ export default function Analytics() {
 
   const statsGrid = [
     { label: 'Jobs Discovered', value: stats?.total_jobs, color: 'text-ink' },
-    { label: 'Total Applied', value: stats?.total_applied, color: 'text-violet-500' },
+    { label: 'Total Applied', value: stats?.total_applied, color: 'text-brand' },
     { label: 'Interviews', value: stats?.total_interviews, color: 'text-success' },
-    { label: 'Interview Rate', value: `${successRate}%`, color: 'text-purple-500' },
-    { label: 'Avg Match Score', value: `${stats?.avg_match_score}%`, color: 'text-emerald-500' },
+    { label: 'Interview Rate', value: `${successRate}%`, color: 'text-info' },
+    { label: 'Avg Match Score', value: `${stats?.avg_match_score}%`, color: 'text-success' },
   ]
 
   return (
@@ -40,7 +40,7 @@ export default function Analytics() {
         {statsGrid.map((s, i) => (
           <div key={i} className="card p-4">
             <p className="label uppercase">{s.label}</p>
-            <p className={`text-2xl font-black text-ink mt-1 ${s.color}`}>{s.value}</p>
+            <p className={`num text-2xl font-semibold mt-1 ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>

@@ -1,105 +1,144 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Sparkles, Radar, FileSearch, Mail, Gauge, Rocket } from 'lucide-react'
+import {
+  ArrowRight, Radar, FileSearch, PenLine, Mail, Gauge,
+  KeyRound, Workflow, CheckCircle2, Compass,
+} from 'lucide-react'
+
+const STEPS = [
+  { icon: KeyRound, title: 'Connect', desc: 'Point it at your portals and drop in your resumes. No accounts, no cloud.' },
+  { icon: Workflow, title: 'It works', desc: 'On a schedule, it scrapes, scores, and applies — then writes a tailored letter.' },
+  { icon: CheckCircle2, title: 'You review', desc: 'Open the dashboard to see what ran, what matched, and who replied.' },
+]
 
 const FEATURES = [
-  { icon: Radar, title: 'Auto Scrape', desc: 'Internshala & Naukri on a timer — zero manual scrolling.' },
-  { icon: FileSearch, title: 'Smart Matching', desc: 'Scores every job against your resumes and picks the best one.' },
-  { icon: Sparkles, title: 'AI Cover Letters', desc: 'Local LLM writes a tailored letter for every application.' },
-  { icon: Mail, title: 'Response Tracking', desc: 'Reads your inbox and auto-updates the pipeline status.' },
-  { icon: Gauge, title: 'Live Health Check', desc: 'A lightweight in-app status indicator — no heavy monitoring containers.' },
+  { icon: Radar, title: 'Auto Scrape', desc: 'Internshala, Naukri & more on a timer — zero manual scrolling.' },
+  { icon: FileSearch, title: 'Smart Matching', desc: 'Scores every role against your resumes and auto-picks the best fit.' },
+  { icon: PenLine, title: 'AI Cover Letters', desc: 'A local LLM writes a tailored letter for each application.' },
+  { icon: Mail, title: 'Response Tracking', desc: 'Reads your inbox and auto-updates pipeline status.' },
+  { icon: Gauge, title: 'Live Health Check', desc: 'In-app status checks — no heavy monitoring containers.' },
 ]
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-[#07060f] text-white relative overflow-hidden flex flex-col">
-      {/* Cinematic animated background (pure CSS/SVG, no heavy assets) */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_-10%,rgba(124,92,246,0.35),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_85%_60%,rgba(20,184,166,0.20),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_35%_35%_at_10%_80%,rgba(59,130,246,0.18),transparent_60%)]" />
-        {/* swirling field lines */}
-        <svg className="absolute inset-0 w-full h-full opacity-30" viewBox="0 0 1200 700" preserveAspectRatio="none">
-          {[120, 200, 280, 360, 440, 520].map((r, i) => (
-            <ellipse key={r} cx="600" cy="330" rx={r + 40} ry={r * 0.42} fill="none"
-              stroke="url(#lg)" strokeWidth="1.4"
-              transform={`rotate(${i * 8 - 32} 600 330)`} opacity={0.5 + i * 0.08} />
-          ))}
-          <defs>
-            <linearGradient id="lg" x1="0" x2="1">
-              <stop offset="0" stopColor="#8b7bf7" stopOpacity="0.5" />
-              <stop offset="0.5" stopColor="#9a8cff" stopOpacity="0.1" />
-              <stop offset="1" stopColor="#14b8a6" stopOpacity="0.5" />
-            </linearGradient>
-          </defs>
-        </svg>
-        {/* subtle grain */}
-        <div className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27120%27 height=%27120%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.9%27 numOctaves=%272%27/%3E%3C/filter%3E%3Crect width=%27100%25%27 height=%27100%25%27 filter=%27url(%23n)%27 opacity=%270.6%27/%3E%3C/svg%3E")' }} />
-      </div>
-
+    <div className="min-h-screen bg-bg text-ink flex flex-col">
       {/* Top nav */}
-      <header className="relative z-10 flex items-center justify-between px-6 md:px-12 py-5">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-teal-400 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-white" />
+      <header className="w-full border-b border-line bg-surface/80 backdrop-saturate-150 sticky top-0 z-20">
+        <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center">
+              <Compass className="w-[18px] h-[18px]" strokeWidth={2.2} />
+            </div>
+            <span className="text-[15px] font-bold tracking-tight">JobPilot</span>
           </div>
-          <span className="text-sm font-bold tracking-tight">JobPilot</span>
+          <nav className="hidden sm:flex items-center gap-7 text-[13px] font-medium text-ink-soft">
+            <a href="#how" className="hover:text-ink transition-colors">How it works</a>
+            <a href="#features" className="hover:text-ink transition-colors">Features</a>
+          </nav>
+          <Link to="/dashboard" className="btn-primary">
+            Launch Dashboard <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
-        <nav className="hidden md:flex items-center gap-8 text-sm text-white/70">
-          <span className="hover:text-white cursor-pointer transition">How It Works</span>
-          <span className="hover:text-white cursor-pointer transition">Features</span>
-          <span className="hover:text-white cursor-pointer transition">Pricing</span>
-          <span className="hover:text-white cursor-pointer transition">Support</span>
-        </nav>
-        <Link to="/dashboard" className="btn-primary !bg-white !text-[#1a1030] hover:!bg-white/90 text-sm px-5 py-2.5">
-          <Rocket className="w-4 h-4" /> Launch Dashboard
-        </Link>
       </header>
 
       {/* Hero */}
-      <main className="relative z-10 flex-1 flex flex-col justify-center px-6 md:px-12 pb-16">
-        <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold text-violet-200 bg-white/5 border border-white/10 rounded-full px-3 py-1 mb-6">
-            <Sparkles className="w-3.5 h-3.5" /> Fully automated job hunting
-          </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-[1.05]">
-            JobPilot
-          </h1>
-          <p className="mt-3 text-2xl md:text-3xl font-semibold text-white/70 tracking-tight">
-            Where applications begin.
-          </p>
-          <p className="mt-6 text-white/55 text-base md:text-lg max-w-lg leading-relaxed">
-            Stop scrolling job portals. JobPilot scrapes, scores, writes, applies, and tracks —
-            running the whole loop on your machine, so you only open the dashboard to see results.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link to="/dashboard" className="btn-primary !bg-white !text-[#1a1030] hover:!bg-white/90 text-base px-7 py-3.5">
-              Start Exploring <ArrowRight className="w-4 h-4" />
-            </Link>
-            <span className="text-xs text-white/40">Local-first · No cloud · 100% free</span>
-          </div>
-        </div>
-
-        {/* Feature cards */}
-        <div className="mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 max-w-5xl">
-          {FEATURES.map((f) => (
-            <div key={f.title} className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm hover:bg-white/8 transition">
-              <f.icon className="w-5 h-5 text-violet-300 mb-3" />
-              <p className="text-sm font-bold">{f.title}</p>
-              <p className="text-xs text-white/50 mt-1 leading-relaxed">{f.desc}</p>
+      <main className="flex-1">
+        <section className="mx-auto max-w-6xl px-6 pt-20 pb-16 md:pt-28 md:pb-20">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 text-xs font-semibold text-brand-strong bg-brand-soft border border-line rounded-md px-2.5 py-1 mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-success" /> Local-first · No cloud · Free
             </div>
-          ))}
-        </div>
+            <h1 className="text-4xl md:text-[3.25rem] font-bold tracking-tight leading-[1.1]">
+              Your job hunt, on autopilot.
+            </h1>
+            <p className="mt-5 text-lg text-ink-soft leading-relaxed max-w-xl">
+              JobPilot scrapes, scores, and applies to roles on <span className="font-semibold text-ink">your machine</span> —
+              then writes a tailored letter and tracks every response. You only open the dashboard to see results.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Link to="/dashboard" className="btn-primary text-sm px-5 py-2.5">
+                Start Exploring <ArrowRight className="w-4 h-4" />
+              </Link>
+              <a href="#how" className="text-sm font-semibold text-ink-soft hover:text-ink transition-colors">See how it works</a>
+            </div>
+          </div>
+
+          {/* Stats strip */}
+          <div className="mt-14 grid grid-cols-2 md:grid-cols-4 gap-px bg-line border border-line rounded-xl overflow-hidden">
+            {[
+              { k: '3', v: 'Job portals' },
+              { k: '1', v: 'Local LLM' },
+              { k: '0', v: 'Cloud accounts' },
+              { k: '100%', v: 'Yours to keep' },
+            ].map((s) => (
+              <div key={s.v} className="bg-surface px-5 py-4">
+                <p className="num text-2xl font-semibold text-ink">{s.k}</p>
+                <p className="text-xs font-medium text-ink-soft mt-0.5">{s.v}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* How it works */}
+        <section id="how" className="mx-auto max-w-6xl px-6 py-14 border-t border-line">
+          <div className="max-w-xl mb-10">
+            <h2 className="text-2xl font-bold tracking-tight">How it works</h2>
+            <p className="mt-2 text-[15px] text-ink-soft">Three steps. Then it runs itself in the background.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {STEPS.map((s, i) => (
+              <div key={s.title} className="card p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-9 h-9 rounded-lg bg-brand-soft text-brand-strong flex items-center justify-center">
+                    <s.icon className="w-[18px] h-[18px]" strokeWidth={2} />
+                  </div>
+                  <span className="num text-xs font-semibold text-ink-faint">0{i + 1}</span>
+                </div>
+                <h3 className="text-[15px] font-semibold text-ink">{s.title}</h3>
+                <p className="mt-1.5 text-[13px] text-ink-soft leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Features */}
+        <section id="features" className="mx-auto max-w-6xl px-6 py-14 border-t border-line">
+          <div className="max-w-xl mb-10">
+            <h2 className="text-2xl font-bold tracking-tight">Everything the loop needs</h2>
+            <p className="mt-2 text-[15px] text-ink-soft">A complete pipeline that lives on your hardware.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="card p-6 transition-colors hover:border-line-strong">
+                <div className="w-10 h-10 rounded-lg bg-brand-soft text-brand-strong flex items-center justify-center mb-4">
+                  <f.icon className="w-5 h-5" strokeWidth={2} />
+                </div>
+                <h3 className="text-[15px] font-semibold text-ink">{f.title}</h3>
+                <p className="mt-1.5 text-[13px] text-ink-soft leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+            {/* CTA card fills the grid */}
+            <div className="card p-6 flex flex-col justify-center bg-surface2">
+              <p className="text-[15px] font-semibold text-ink">Ready when you are</p>
+              <p className="mt-1.5 text-[13px] text-ink-soft leading-relaxed">Spin it up and open the dashboard in a couple of minutes.</p>
+              <Link to="/dashboard" className="btn-primary mt-4 self-start">
+                Launch Dashboard <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
-      <footer className="relative z-10 px-6 md:px-12 py-5 flex items-center justify-between text-xs text-white/40">
-        <span>The loop runs itself. You run the chase.</span>
-        <span className="flex items-center gap-2"><BrandNote /> JobPilot © 2025</span>
+      <footer className="border-t border-line bg-surface">
+        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-ink-faint">
+          <span className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded bg-brand flex items-center justify-center">
+              <Compass className="w-2.5 h-2.5 text-white" />
+            </div>
+            JobPilot — the loop runs itself. You run the chase.
+          </span>
+          <span>Self-hosted · MIT</span>
+        </div>
       </footer>
     </div>
   )
-}
-
-function BrandNote() {
-  return <span className="w-4 h-4 rounded bg-gradient-to-br from-violet-500 to-teal-400 inline-block" />
 }

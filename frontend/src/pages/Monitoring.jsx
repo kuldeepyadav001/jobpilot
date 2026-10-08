@@ -9,7 +9,7 @@ function Stat({ label, value, tone = 'text-ink', icon: Icon }) {
         {Icon && <Icon className="w-3.5 h-3.5 text-ink-faint" />}
         <p className="label">{label}</p>
       </div>
-      <h3 className={`text-2xl font-black mt-1 ${tone}`}>{value}</h3>
+      <h3 className={`num text-2xl font-semibold mt-1 ${tone}`}>{value}</h3>
     </div>
   )
 }
@@ -56,12 +56,12 @@ function PipelineCard({ status }) {
 
 function CookieBadge({ status }) {
   const map = {
-    configured: ['bg-emerald-600/10 text-emerald-600', '✓ Active'],
-    empty: ['bg-yellow-600/10 text-yellow-600', '⚠ Too short'],
-    missing: ['bg-red-600/10 text-red-600', '✕ Missing'],
+    configured: ['bg-success-soft text-success', 'Active'],
+    empty: ['bg-warn-soft text-warn', 'Too short'],
+    missing: ['bg-danger-soft text-danger', 'Missing'],
   }
   const [cls, label] = map[status] || map.missing
-  return <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${cls}`}>{label}</span>
+  return <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md ${cls}`}>{label}</span>
 }
 
 function formatUptime(secs) {
@@ -98,7 +98,7 @@ export default function Monitoring() {
           <Activity className="w-6 h-6" />
         </div>
         <div>
-          <h3 className={`text-lg font-black ${allOk ? 'text-success' : 'text-danger'}`}>
+          <h3 className={`text-lg font-bold ${allOk ? 'text-success' : 'text-danger'}`}>
             {allOk ? 'All systems healthy' : 'Attention needed'}
           </h3>
           <p className="text-xs text-ink-soft font-medium">
@@ -112,7 +112,7 @@ export default function Monitoring() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Stat label="Uptime" value={formatUptime(health?.uptime_seconds)} icon={Activity} />
         <Stat label="Jobs" value={counts.total_jobs ?? '—'} icon={Briefcase} />
-        <Stat label="Applications" value={counts.total_applications ?? '—'} tone="text-violet-500" icon={Send} />
+        <Stat label="Applications" value={counts.total_applications ?? '—'} tone="text-brand" icon={Send} />
         <Stat label="Responses" value={counts.total_responses ?? '—'} tone="text-success" icon={Inbox} />
       </div>
 
@@ -142,17 +142,17 @@ export default function Monitoring() {
       {/* Interviews + offers mini row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="card p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center"><Trophy className="w-5 h-5" /></div>
+          <div className="w-12 h-12 rounded-lg bg-brand-soft text-brand flex items-center justify-center"><Trophy className="w-5 h-5" /></div>
           <div>
             <p className="label">Interviews</p>
-            <h3 className="text-2xl font-black text-ink">{counts.interviews ?? 0}</h3>
+            <h3 className="num text-2xl font-semibold text-ink">{counts.interviews ?? 0}</h3>
           </div>
         </div>
         <div className="card p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><Trophy className="w-5 h-5" /></div>
+          <div className="w-12 h-12 rounded-lg bg-success-soft text-success flex items-center justify-center"><Trophy className="w-5 h-5" /></div>
           <div>
             <p className="label">Offers</p>
-            <h3 className="text-2xl font-black text-ink">{counts.offers ?? 0}</h3>
+            <h3 className="num text-2xl font-semibold text-ink">{counts.offers ?? 0}</h3>
           </div>
         </div>
       </div>

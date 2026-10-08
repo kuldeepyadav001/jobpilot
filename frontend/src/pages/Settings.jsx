@@ -126,10 +126,13 @@ export default function Settings() {
                   <p className="font-semibold text-sm uppercase text-ink">{c.portal}</p>
                   <p className="text-xs text-ink-faint">Cookie length: {c.cookie_length} chars</p>
                 </div>
-                <span className={`text-xs font-bold px-3 py-1 rounded-full text-white ${
-                  c.status === 'configured' ? 'bg-success' : c.status === 'empty' ? 'bg-warn' : 'bg-danger'
+                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md ${
+                  c.status === 'configured' ? 'bg-success-soft text-success' : c.status === 'empty' ? 'bg-warn-soft text-warn' : 'bg-danger-soft text-danger'
                 }`}>
-                  {c.status === 'configured' ? '✅ Active' : c.status === 'empty' ? '⚠️ Too Short' : '❌ Missing'}
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    c.status === 'configured' ? 'bg-success' : c.status === 'empty' ? 'bg-warn' : 'bg-danger'
+                  }`}></span>
+                  {c.status === 'configured' ? 'Active' : c.status === 'empty' ? 'Too short' : 'Missing'}
                 </span>
               </div>
               <button
@@ -141,8 +144,8 @@ export default function Settings() {
               {sessionResult && sessionResult.portal === c.portal && (
                 <div className={`text-[11px] font-bold mt-1 ${sessionResult.ok ? 'text-success' : 'text-danger'}`}>
                   {sessionResult.logged_in
-                    ? `✅ Logged in — cookie works (${sessionResult.cookies_injected ?? '?'} cookies injected).`
-                    : `❌ Not authenticated (${sessionResult.cookies_injected ?? 0} cookies injected).`}
+                    ? `Logged in — cookie works (${sessionResult.cookies_injected ?? '?'} cookies injected).`
+                    : `Not authenticated (${sessionResult.cookies_injected ?? 0} cookies injected).`}
                   {sessionResult.final_url && !sessionResult.logged_in && (
                     <span className="text-ink-faint font-medium block">Landed on: {sessionResult.final_url}</span>
                   )}
