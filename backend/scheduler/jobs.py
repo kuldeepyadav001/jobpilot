@@ -55,7 +55,14 @@ def select_apply_targets(db: Session, threshold: int, target_count: int, min_sal
 
 async def _run_apply_step(db: Session):
     """Selects qualified, non-applied, non-blacklisted jobs and applies to each
-    using the best-matching resume. Respects the daily per-portal rate cap."""
+    using the best-matching resume. Respects the daily per-portal rate cap.
+
+    Runs in TWO SEQUENTIAL PASSES so the LLM and the browser are NEVER both in RAM
+    at once (critical for low-memory machines):
+      PASS A — "prepare letters": pick the best resume per job and generate its
+               cover letter (LLM only; no browser running). Letters cached in memory.
+      PASS B — "apply": fill + submit each cached letter (browser only; no LLM).
+    """
     active_resumes = db.query(Resume).filter(Resume.is_active == True).all()
     if not active_resumes:
         logger.warning("[Pipeline] Apply step skipped: No active resume found.")
@@ -67,23 +74,35 @@ async def _run_apply_step(db: Session):
     logger.info(f"[Pipeline] Found {len(qualified_jobs)} qualified jobs with {len(active_resumes)} active resume(s) "
                 f"(target={settings.apply_target_count}, floor={settings.match_score_threshold}, "
                 f"min_salary={settings.min_salary}).")
+
+    # ---- PASS A: pick best resume + generate cover letters (LLM only, no browser) ----
+    prepared = []  # list of (job, best_resume, cover_letter, best_score)
     for job in qualified_jobs:
         if not can_apply_today(db, job.portal):
-            logger.info(f"[Pipeline] Daily cap reached for {job.portal}. Skipping this job "
-                        f"(other portals can still apply).")
+            logger.info(f"[Pipeline] Daily cap already reached for {job.portal} — skipping letter "
+                        f"for '{job.title}'.")
             continue
-
         # Pick the single BEST resume for THIS job (auto-pick best resume).
         jd_text = f"{job.title} {job.description or ''}"
         best_resume, best_score = select_best_resume(jd_text, active_resumes)
         if best_resume is None:
             logger.warning(f"[Pipeline] No best resume could be selected for '{job.title}'. Skipping.")
             continue
+        cover_letter = await generate_cover_letter_for_job(db, job, best_resume)
+        prepared.append((job, best_resume, cover_letter, best_score))
+    logger.info(f"[Pipeline] Prepared {len(prepared)} cover letter(s) — LLM done, browser not yet loaded.")
+
+    # ---- PASS B: apply each cached letter (browser only, no LLM) ----
+    for job, best_resume, cover_letter, best_score in prepared:
+        # Re-check the daily cap HERE (authoritative, right before applying) in case
+        # earlier applications this run already filled this portal's quota.
+        if not can_apply_today(db, job.portal):
+            logger.info(f"[Pipeline] Daily cap reached for {job.portal}. Skipping '{job.title}' "
+                        f"(other portals can still apply).")
+            continue
 
         logger.info(f"[Pipeline] Applying to: '{job.title}' (Match: {job.match_score}%) "
                     f"| Best resume: '{best_resume.name}' (score {best_score:.2f})")
-        cover_letter = await generate_cover_letter_for_job(db, job, best_resume)
-
         # Time-box each application so one hung browser/page (bad cookie, infinite
         # reCAPTCHA, slow portal) can never stall the whole pipeline.
         try:

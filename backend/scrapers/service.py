@@ -176,6 +176,10 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                 for key in total_stats:
                     total_stats[key] += stats.get(key, 0)
 
+        # Close the Internshala browser BEFORE the next portal starts, so only ONE
+        # Chromium is ever in RAM at a time (biggest win on low-memory machines).
+        await internshala.close()
+
         # --- Naukri (uses tighter keywords; always jobs) ---
         # Skipped when the user chose internships-only (Naukri has no internships).
         if not skip_naukri:
@@ -200,6 +204,9 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
         else:
             logger.info("[Scraper] Internships-only mode: skipping Naukri (jobs only).")
 
+        # Close the Naukri browser before the next portal (ONE Chromium at a time).
+        await naukri.close()
+
         # --- Freshersworld (supports jobs AND internships; uses broad keywords) ---
         for jt in job_types:
             for kw in internshala_kws:
@@ -221,7 +228,11 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                     stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
                 for key in total_stats:
                     total_stats[key] += stats.get(key, 0)
+
+        # Close the Freshersworld browser now (ONE Chromium at a time).
+        await freshersworld.close()
     finally:
+        # Safety net — no-ops for any portal already closed above.
         await internshala.close()
         await naukri.close()
         await freshersworld.close()
