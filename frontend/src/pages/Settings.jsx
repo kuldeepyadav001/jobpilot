@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { triggerPipeline, fetchPipelineStatus, fetchAppSettings, runScraperDiagnostics, fetchScraperDiagnosticsStatus, runJobCleanup } from '../api/client'
 import { fetchCookieHealth, checkSession } from '../api/client'
@@ -16,10 +16,20 @@ export default function Settings() {
   })
   const isRunning = runStatus?.running
 
+  // Log a terminal (success/error) line EXACTLY ONCE per completed run. The 3s poll
+  // returns a fresh object every time, so we key on `completed_at` (the server-side
+  // timestamp of the last finished run), which only changes when a NEW run finishes.
+  // (The old code compared a fresh toLocaleTimeString() in its dedupe, so it re-added
+  // the terminal line every 3s — an unbounded "loop" that flooded the log.)
+  const lastCompletedRef = useRef(null)
   useEffect(() => {
-    if (runStatus && (runStatus.status === 'success' || runStatus.status === 'error')) {
-      const newLine = `[${new Date().toLocaleTimeString()}] ${runStatus.status.toUpperCase()}: ${runStatus.message}`
-      setLog(prev => (prev[prev.length - 1] === newLine ? prev : [...prev, newLine]))
+    if (!runStatus) return
+    if ((runStatus.status === 'success' || runStatus.status === 'error') &&
+        runStatus.completed_at != null &&
+        runStatus.completed_at !== lastCompletedRef.current) {
+      lastCompletedRef.current = runStatus.completed_at
+      const line = `[${new Date().toLocaleTimeString()}] ${runStatus.status.toUpperCase()}: ${runStatus.message}`
+      setLog(prev => (prev[prev.length - 1] === line ? prev : [...prev, line]))
     }
   }, [runStatus])
 

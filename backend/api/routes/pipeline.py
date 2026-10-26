@@ -21,6 +21,9 @@ class RunStatus(BaseModel):
     message: str
     step: str | None = None
     last_activity_at: float | None = None
+    # Stable identity of the last FINISHED run (epoch secs). Lets the UI log a
+    # terminal line exactly once per run instead of once per poll.
+    completed_at: float | None = None
 
 
 async def _background_run():
@@ -66,4 +69,5 @@ def pipeline_status():
         message=st["message"],
         step=st.get("step"),
         last_activity_at=st.get("last_activity_at"),
+        completed_at=st.get("completed_at"),
     )
