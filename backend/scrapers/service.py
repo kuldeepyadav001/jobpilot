@@ -165,11 +165,13 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                         pass
                 logger.info(f"Scraping Internshala '{kw}' ({jt})")
                 try:
-                    stats = save_scraped_jobs(db, await internshala.scrape(
+                    raw = await internshala.scrape(
                         keyword=kw, location=location, max_results=max_per_portal,
                         enrich=True, skip_urls=known,
                         job_type="internship" if jt == "internships" else "job",
-                    ))
+                    )
+                    stats = save_scraped_jobs(db, raw)
+                    known.update(j.url for j in raw)
                 except Exception as e:
                     logger.error(f"[Scraper] Internshala '{kw}' ({jt}) failed (isolated): {e}")
                     stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
@@ -192,10 +194,12 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                         pass
                 logger.info(f"Scraping Naukri '{kw}'")
                 try:
-                    stats = save_scraped_jobs(db, await naukri.scrape(
+                    raw = await naukri.scrape(
                         keyword=kw, location=location, max_results=max_per_portal,
                         enrich=True, skip_urls=known, job_type="job",
-                    ))
+                    )
+                    stats = save_scraped_jobs(db, raw)
+                    known.update(j.url for j in raw)
                 except Exception as e:
                     logger.error(f"[Scraper] Naukri '{kw}' failed (isolated): {e}")
                     stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
@@ -218,11 +222,13 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
                         pass
                 logger.info(f"Scraping Freshersworld '{kw}' ({jt})")
                 try:
-                    stats = save_scraped_jobs(db, await freshersworld.scrape(
+                    raw = await freshersworld.scrape(
                         keyword=kw, location=location, max_results=max_per_portal,
                         enrich=True, skip_urls=known,
                         job_type="internship" if jt == "internships" else "job",
-                    ))
+                    )
+                    stats = save_scraped_jobs(db, raw)
+                    known.update(j.url for j in raw)
                 except Exception as e:
                     logger.error(f"[Scraper] Freshersworld '{kw}' ({jt}) failed (isolated): {e}")
                     stats = {"saved": 0, "enriched": 0, "skipped": 0, "blacklisted": 0}
@@ -239,35 +245,6 @@ async def run_all_scrapers(db: Session, keywords: List[str], location: str = "re
 
     logger.info(f"Completed multi-keyword scraper run. Aggregated stats: {total_stats}")
     return total_stats
-
-
-async def scrape_keyword(
-    keyword: str,
-    location: str,
-    max_per_portal: int,
-    enrich: bool = True,
-    internshala: Optional[InternshalaScraper] = None,
-    naukri: Optional[NaukriScraper] = None,
-    skip_urls: Optional[set] = None,
-    job_type: str = "job",
-) -> List[ScrapedJob]:
-    """Scrapes one keyword across all portals and returns the combined raw list (no DB save).
-
-    `job_type` = 'job' or 'internship'. Internshala routes to the matching section;
-    Naukri only lists jobs (its `job_type` is forced to 'job' regardless).
-    """
-    internshala = internshala or InternshalaScraper()
-    naukri = naukri or NaukriScraper()
-
-    ishala_jobs = await internshala.scrape(
-        keyword=keyword, location=location, max_results=max_per_portal,
-        enrich=enrich, skip_urls=skip_urls, job_type=job_type,
-    )
-    naukri_jobs = await naukri.scrape(
-        keyword=keyword, location=location, max_results=max_per_portal,
-        enrich=enrich, skip_urls=skip_urls, job_type="job",
-    )
-    return ishala_jobs + naukri_jobs
 
 
 async def scrape_diagnostics(keywords: List[str], location: str, max_per_portal: int) -> dict:

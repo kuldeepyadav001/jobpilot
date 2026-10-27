@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 from loguru import logger
 
 
@@ -26,6 +26,7 @@ class BaseBrowser:
 
     def __init__(self, headless: bool = True):
         self.headless = headless
+        self._playwright: Optional[Playwright] = None
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         # When a scraper is reused across many keywords in one cycle, the caller
@@ -41,7 +42,11 @@ class BaseBrowser:
         Launches a stealth-configured Chromium instance.
         Injects session cookies if provided.
         """
-        p = await async_playwright().start()
+        # Reuse an already-running driver (so a crash-recovery relaunch does NOT
+        # leak the previous driver subprocess). Only create one if we don't have it.
+        if self._playwright is None:
+            self._playwright = await async_playwright().start()
+        p = self._playwright
         self.browser = await p.chromium.launch(
             headless=self.headless,
             args=[
@@ -186,6 +191,17 @@ class BaseBrowser:
                 await self.browser.close()
         except Exception as e:
             logger.debug(f"[Browser] Browser close error (non-critical): {e}")
+        self.browser = None
+        self.context = None
+        # Stop the Playwright driver subprocess. Without this it leaks in RAM after
+        # EVERY scrape/apply cycle (a driver node process stays alive) — the biggest
+        # hidden memory leak on low-memory machines.
+        try:
+            if self._playwright is not None:
+                await self._playwright.stop()
+                self._playwright = None
+        except Exception as e:
+            logger.debug(f"[Browser] Playwright stop error (non-critical): {e}")
 
 
 class BaseScraper(BaseBrowser, ABC):
